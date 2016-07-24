@@ -15,7 +15,6 @@ func main() {
 	// TODO change to real default path
 	path := flag.String("c", "./config.toml", "path to configuration file")
 	flag.Parse()
-
 	tree, err := toml.LoadFile(*path)
 	if err != nil {
 		log.Fatal(err)
@@ -26,7 +25,7 @@ func main() {
 		log.Fatalf("%v: type of proxies is not a be array of tables", tree.GetPosition("proxies"))
 	}
 	p := make([]*proxy, len(trees))
-	var errs []error
+	var errs []string
 	for i, tree := range trees {
 		p[i] = new(proxy)
 		v := tree.Get("name")
@@ -55,7 +54,7 @@ func main() {
 			}
 			host, _, err := net.SplitHostPort(p[i].dial)
 			if err != nil {
-				errs = append(errs, fmt.Errorf("%v: error parsing proxies[%d].dial: %v", tree.GetPosition("dial"), i, err))
+				errs = append(errs, fmt.Sprintf("%v: error parsing proxies[%d].dial: %v", tree.GetPosition("dial"), i, err))
 			}
 			p[i].config = &tls.Config{ServerName: host}
 		}
@@ -69,20 +68,22 @@ func main() {
 			}
 			laddr, err := net.ResolveTCPAddr("tcp", bind)
 			if err != nil {
-				errs = append(errs, fmt.Errorf("%v: error resolving proxies[%d].bind: %v", tree.GetPosition("bind"), i, err))
+				errs = append(errs, fmt.Sprintf("%v: error resolving proxies[%d].bind: %v", tree.GetPosition("bind"), i, err))
 			}
 			p[i].l, err = net.ListenTCP("tcp", laddr)
 			if err != nil {
-				errs = append(errs, fmt.Errorf("%v: error listening on proxies[%d].bind: %v", tree.GetPosition("bind"), i, err))
+				errs = append(errs, fmt.Sprintf("%v: error listening on proxies[%d].bind: %v", tree.GetPosition("bind"), i, err))
 			}
 		}
 	}
+
 	if errs != nil {
 		for _, e := range errs {
 			log.Print(e)
 		}
 		os.Exit(1)
 	}
+
 	for i := 1; i < len(p); i++ {
 		go func(i int) {
 			log.Fatal(p[i].serve())
@@ -91,10 +92,10 @@ func main() {
 	log.Fatal(p[0].serve())
 }
 
-func missingError(tree *toml.TomlTree, key string, i int) error {
-	return fmt.Errorf("%v: proxies[%v].%v is missing", tree.GetPosition(""), i, key)
+func missingError(tree *toml.TomlTree, key string, i int) string {
+	return fmt.Sprintf("%v: proxies[%v].%v is missing", tree.GetPosition(""), i, key)
 }
 
-func typeError(tree *toml.TomlTree, key, expectedType string, i int) error {
-	return fmt.Errorf("%v: type of proxies[%v].%v is not %v", tree.GetPosition(key), i, key, expectedType)
+func typeError(tree *toml.TomlTree, key, expectedType string, i int) string {
+	return fmt.Sprintf("%v: type of proxies[%v].%v is not %v", tree.GetPosition(key), i, key, expectedType)
 }
