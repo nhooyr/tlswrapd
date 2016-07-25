@@ -21,14 +21,16 @@ func main() {
 	path := flag.String("c", "/usr/local/etc/tlswrapd/config.toml", "path to the configuration file")
 	timestamps := flag.Bool("timestamps", false, "enable timestamps on log lines")
 	flag.Parse()
+
 	logger = log.New(os.Stderr, *timestamps)
 	tree, err := toml.LoadFile(*path)
 	if err != nil {
 		logger.Fatal(err)
 	}
+
 	trees, ok := tree.Get("proxies").([]*toml.TomlTree)
 	if !ok {
-		logger.Fatalf("%v: type of proxies is not a be array of tables", tree.GetPosition("proxies"))
+		logger.Fatalf("%v: type of proxies is not an array of tables", tree.GetPosition("proxies"))
 	}
 	p := make([]*proxy, len(trees))
 	var errs []string
