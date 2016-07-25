@@ -47,8 +47,8 @@ func (p *proxy) handle(c1 *net.TCPConn) {
 	c1.SetKeepAlive(true)
 	c1.SetKeepAlivePeriod(30 * time.Second)
 	raddr := c1.RemoteAddr()
-	p.logf("accepted connection from %v", raddr)
-	defer p.logf("disconnected connection from %v", raddr)
+	p.logf("accepted %v", raddr)
+	defer p.logf("disconnected %v", raddr)
 	c, err := p.d.Dial("tcp", p.dial)
 	if err != nil {
 		c1.Close()
