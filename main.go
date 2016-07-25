@@ -17,9 +17,9 @@ import (
 var logger *log.Logger
 
 func main() {
-	// TODO change to real default path
-	path := flag.String("c", "/usr/local/etc/tlswrapd/config.toml", "path to configuration file")
-	timestamps := flag.Bool("t", false, "enables timestamps on log lines")
+	// TODO linux FSH
+	path := flag.String("c", "/usr/local/etc/tlswrapd/config.toml", "path to the configuration file")
+	timestamps := flag.Bool("timestamps", false, "enable timestamps on log lines")
 	flag.Parse()
 	logger = log.New(os.Stderr, *timestamps)
 	tree, err := toml.LoadFile(*path)
