@@ -19,7 +19,7 @@ type proxy struct {
 	config   *tls.Config
 }
 
-func (p *proxy) serve() error {
+func (p *proxy) serve() {
 	var tempDelay time.Duration
 	for {
 		c, err := p.l.AcceptTCP()
@@ -33,7 +33,7 @@ func (p *proxy) serve() error {
 				if tempDelay > time.Second {
 					tempDelay = time.Second
 				}
-				p.logf("accept error: %v; retrying in %v", err, tempDelay)
+				p.logf("%v; retrying in %v", err, tempDelay)
 				time.Sleep(tempDelay)
 				continue
 			}
