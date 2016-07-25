@@ -13,7 +13,7 @@ import (
 
 func main() {
 	// TODO change to real default path
-	path := flag.String("c", "/usr/local/etc/tlsmuxd/config.toml", "path to configuration file")
+	path := flag.String("c", "/usr/local/etc/tlswrapd/config.toml", "path to configuration file")
 	flag.Parse()
 	tree, err := toml.LoadFile(*path)
 	if err != nil {
