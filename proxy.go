@@ -13,6 +13,7 @@ import (
 type proxy struct {
 	name     string
 	dial     string
+	d        *net.Dialer
 	protocol string
 	l        *net.TCPListener
 	config   *tls.Config
@@ -49,20 +50,13 @@ func (p *proxy) handle(c1 *net.TCPConn) {
 	raddr := c1.RemoteAddr()
 	p.logf("accepted connection from %v", raddr)
 	defer p.logf("disconnected connection from %v", raddr)
-	dial, err := net.ResolveTCPAddr("tcp", p.dial)
+	c, err := p.d.Dial("tcp", p.dial)
 	if err != nil {
 		c1.Close()
 		p.log(err)
 		return
 	}
-	c, err := net.DialTCP("tcp", nil, dial)
-	if err != nil {
-		c1.Close()
-		p.log(err)
-		return
-	}
-	c.SetKeepAlive(true)
-	c.SetKeepAlivePeriod(30 * time.Second)
+	tc := c.(*net.TCPConn)
 	c2 := tls.Client(c, p.config)
 	err = c2.Handshake()
 	if err != nil {
@@ -77,7 +71,7 @@ func (p *proxy) handle(c1 *net.TCPConn) {
 		if err != nil {
 			p.log(err)
 		}
-		c.CloseWrite()
+		tc.CloseWrite()
 		c1.CloseRead()
 		wg.Done()
 	}()
@@ -87,12 +81,13 @@ func (p *proxy) handle(c1 *net.TCPConn) {
 			p.log(err)
 		}
 		c1.CloseWrite()
-		c.CloseRead()
+		tc.CloseRead()
 		wg.Done()
 	}()
 	wg.Wait()
 }
 
+// TODO logging with timestamps
 func (p *proxy) logf(format string, v ...interface{}) {
 	log.Printf(p.name+format, v...)
 }

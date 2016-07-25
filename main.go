@@ -6,10 +6,15 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"time"
 
 	"github.com/nhooyr/log"
 	"github.com/pelletier/go-toml"
 )
+
+func init() {
+	log.EnableTimestamps()
+}
 
 func main() {
 	// TODO change to real default path
@@ -77,6 +82,7 @@ func main() {
 				errs = append(errs, fmt.Sprintf("%v: error listening on proxies[%d].bind: %v", tree.GetPosition("bind"), i, err))
 			}
 		}
+		p[i].d = &net.Dialer{Timeout: 10 * time.Second, KeepAlive: 30 * time.Second}
 	}
 
 	if errs != nil {
