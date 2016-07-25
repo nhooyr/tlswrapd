@@ -35,6 +35,8 @@ func main() {
 			p[i].name, ok = v.(string)
 			if !ok {
 				errs = append(errs, typeError(tree, "name", "string", i))
+			} else {
+				p[i].name += ": "
 			}
 		}
 		v = tree.Get("protocol")
@@ -85,11 +87,9 @@ func main() {
 	}
 
 	for i := 1; i < len(p); i++ {
-		go func(i int) {
-			log.Fatal(p[i].serve())
-		}(i)
+		go p[i].serve()
 	}
-	log.Fatal(p[0].serve())
+	p[0].serve()
 }
 
 func missingError(tree *toml.TomlTree, key string, i int) string {

@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"io"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/nhooyr/log"
@@ -31,30 +32,33 @@ func (p *proxy) serve() error {
 				if tempDelay > time.Second {
 					tempDelay = time.Second
 				}
-				log.Printf("Accept error: %v; retrying in %v", err, tempDelay)
+				p.logf("accept error: %v; retrying in %v", err, tempDelay)
 				time.Sleep(tempDelay)
 				continue
 			}
-			return err
+			p.fatal(err)
 		}
 		tempDelay = 0
-		c.SetKeepAlive(true)
-		c.SetKeepAlivePeriod(30 * time.Second)
 		go p.handle(c)
 	}
 }
 
 func (p *proxy) handle(c1 *net.TCPConn) {
-	raddr, err := net.ResolveTCPAddr("tcp", p.dial)
+	c1.SetKeepAlive(true)
+	c1.SetKeepAlivePeriod(30 * time.Second)
+	raddr := c1.RemoteAddr()
+	p.logf("accepted connection from %v", raddr)
+	defer p.logf("disconnected connection from %v", raddr)
+	dial, err := net.ResolveTCPAddr("tcp", p.dial)
 	if err != nil {
 		c1.Close()
-		log.Print(err)
+		p.log(err)
 		return
 	}
-	c, err := net.DialTCP("tcp", nil, raddr)
+	c, err := net.DialTCP("tcp", nil, dial)
 	if err != nil {
 		c1.Close()
-		log.Print(err)
+		p.log(err)
 		return
 	}
 	c.SetKeepAlive(true)
@@ -63,21 +67,40 @@ func (p *proxy) handle(c1 *net.TCPConn) {
 	err = c2.Handshake()
 	if err != nil {
 		c1.Close()
-		log.Print(err)
+		p.log(err)
 		return
 	}
+	var wg sync.WaitGroup
+	wg.Add(2)
 	go func() {
 		_, err := io.Copy(c2, c1)
 		if err != nil {
-			log.Print(err)
+			p.log(err)
 		}
 		c.CloseWrite()
 		c1.CloseRead()
+		wg.Done()
 	}()
-	_, err = io.Copy(c1, c2)
-	if err != nil {
-		log.Print(err)
-	}
-	c1.CloseWrite()
-	c.CloseRead()
+	go func() {
+		_, err = io.Copy(c1, c2)
+		if err != nil {
+			p.log(err)
+		}
+		c1.CloseWrite()
+		c.CloseRead()
+		wg.Done()
+	}()
+	wg.Wait()
+}
+
+func (p *proxy) logf(format string, v ...interface{}) {
+	log.Printf(p.name+format, v...)
+}
+
+func (p *proxy) log(err error) {
+	log.Print(p.name, err)
+}
+
+func (p *proxy) fatal(err error) {
+	log.Fatal(p.name, err)
 }
