@@ -6,28 +6,29 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/nhooyr/log"
 	"github.com/pelletier/go-toml"
 )
 
-func init() {
-	log.EnableTimestamps()
-}
+var logger *log.Logger
 
 func main() {
 	// TODO change to real default path
 	path := flag.String("c", "/usr/local/etc/tlswrapd/config.toml", "path to configuration file")
+	timestamps := flag.Bool("t", false, "enables timestamps on log lines")
 	flag.Parse()
+	logger = log.New(os.Stderr, *timestamps)
 	tree, err := toml.LoadFile(*path)
 	if err != nil {
-		log.Fatal(err)
+		logger.Fatal(err)
 	}
-
 	trees, ok := tree.Get("proxies").([]*toml.TomlTree)
 	if !ok {
-		log.Fatalf("%v: type of proxies is not a be array of tables", tree.GetPosition("proxies"))
+		logger.Fatalf("%v: type of proxies is not a be array of tables", tree.GetPosition("proxies"))
 	}
 	p := make([]*proxy, len(trees))
 	var errs []string
@@ -75,11 +76,11 @@ func main() {
 			}
 			laddr, err := net.ResolveTCPAddr("tcp", bind)
 			if err != nil {
-				errs = append(errs, fmt.Sprintf("%v: error resolving proxies[%d].bind: %v", tree.GetPosition("bind"), i, err))
+				errs = append(errs, fmt.Sprintf("%v: proxies[%d].bind: %v", tree.GetPosition("bind"), i, err))
 			}
 			p[i].l, err = net.ListenTCP("tcp", laddr)
 			if err != nil {
-				errs = append(errs, fmt.Sprintf("%v: error listening on proxies[%d].bind: %v", tree.GetPosition("bind"), i, err))
+				errs = append(errs, fmt.Sprintf("%v: proxies[%d].bind: %v", tree.GetPosition("bind"), i, err))
 			}
 		}
 		p[i].d = &net.Dialer{Timeout: 10 * time.Second, KeepAlive: 30 * time.Second}
@@ -87,11 +88,20 @@ func main() {
 
 	if errs != nil {
 		for _, e := range errs {
-			log.Print(e)
+			logger.Print(e)
 		}
 		os.Exit(1)
 	}
 
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-sigs
+		logger.Print("terminating")
+		os.Exit(0)
+	}()
+
+	logger.Print("initialized")
 	for i := 1; i < len(p); i++ {
 		go p[i].serve()
 	}

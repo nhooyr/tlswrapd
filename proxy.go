@@ -6,8 +6,6 @@ import (
 	"net"
 	"sync"
 	"time"
-
-	"github.com/nhooyr/log"
 )
 
 type proxy struct {
@@ -87,15 +85,14 @@ func (p *proxy) handle(c1 *net.TCPConn) {
 	wg.Wait()
 }
 
-// TODO logging with timestamps
 func (p *proxy) logf(format string, v ...interface{}) {
-	log.Printf(p.name+format, v...)
+	logger.Printf(p.name+format, v...)
 }
 
 func (p *proxy) log(err error) {
-	log.Print(p.name, err)
+	logger.Print(p.name, err)
 }
 
 func (p *proxy) fatal(err error) {
-	log.Fatal(p.name, err)
+	logger.Fatal(p.name, err)
 }
