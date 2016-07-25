@@ -11,6 +11,7 @@ import (
 type proxy struct {
 	name     string
 	dial     string
+	// TODO optimize
 	d        *net.Dialer
 	protocol string
 	l        *net.TCPListener
