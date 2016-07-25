@@ -26,7 +26,11 @@ func main() {
 		logger.Fatal(err)
 	}
 
-	trees, ok := tree.Get("proxies").([]*toml.TomlTree)
+	v := tree.Get("proxies")
+	if v == nil {
+		logger.Fatalf("%v: proxies is missing", tree.GetPosition(""))
+	}
+	trees, ok := v.([]*toml.TomlTree)
 	if !ok {
 		logger.Fatalf("%v: type of proxies is not an array of tables", tree.GetPosition("proxies"))
 	}
@@ -34,7 +38,7 @@ func main() {
 	var errs []string
 	for i, tree := range trees {
 		p[i] = new(proxy)
-		v := tree.Get("name")
+		v = tree.Get("name")
 		if v == nil {
 			errs = append(errs, missingError(tree, "name", i))
 		} else {
