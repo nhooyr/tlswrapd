@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/nhooyr/log"
 	"github.com/pelletier/go-toml"
@@ -17,7 +16,6 @@ import (
 var logger *log.Logger
 
 func main() {
-	// TODO linux FSH
 	path := flag.String("c", "/usr/local/etc/tlswrapd/config.toml", "path to the configuration file")
 	timestamps := flag.Bool("timestamps", false, "enable timestamps on log lines")
 	flag.Parse()
@@ -85,7 +83,6 @@ func main() {
 				errs = append(errs, fmt.Sprintf("%v: proxies[%d].bind: %v", tree.GetPosition("bind"), i, err))
 			}
 		}
-		p[i].d = &net.Dialer{Timeout: 10 * time.Second, KeepAlive: 30 * time.Second}
 	}
 
 	if errs != nil {

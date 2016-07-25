@@ -8,11 +8,12 @@ import (
 	"time"
 )
 
+// TODO optimize
+var d = &net.Dialer{Timeout: 10 * time.Second, KeepAlive: 30 * time.Second}
+
 type proxy struct {
 	name     string
 	dial     string
-	// TODO optimize
-	d        *net.Dialer
 	protocol string
 	l        *net.TCPListener
 	config   *tls.Config
@@ -49,7 +50,7 @@ func (p *proxy) handle(c1 *net.TCPConn) {
 	raddr := c1.RemoteAddr()
 	p.logf("accepted %v", raddr)
 	defer p.logf("disconnected %v", raddr)
-	c, err := p.d.Dial("tcp", p.dial)
+	c, err := d.Dial("tcp", p.dial)
 	if err != nil {
 		c1.Close()
 		p.log(err)
