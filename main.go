@@ -28,11 +28,11 @@ func main() {
 
 	v := tree.Get("proxies")
 	if v == nil {
-		logger.Fatalf("%v: proxies is missing", tree.GetPosition(""))
+		logger.Fatalf("%v: missing proxies", tree.GetPosition(""))
 	}
 	trees, ok := v.([]*toml.TomlTree)
 	if !ok {
-		logger.Fatalf("%v: type of proxies is not an array of tables", tree.GetPosition("proxies"))
+		logger.Fatalf("%v: proxies should be an array of tables", tree.GetPosition("proxies"))
 	}
 	p := make([]*proxy, len(trees))
 	var errs []string
@@ -40,7 +40,8 @@ func main() {
 		p[i] = new(proxy)
 		v = tree.Get("name")
 		if v == nil {
-			errs = append(errs, missingError(tree, "name", i))
+			errs = append(errs, missingError(tree, i, "name"))
+			continue
 		} else {
 			p[i].name, ok = v.(string)
 			if !ok {
@@ -58,33 +59,37 @@ func main() {
 		}
 		v = tree.Get("dial")
 		if v == nil {
-			errs = append(errs, missingError(tree, "dial", i))
+			errs = append(errs, missingError(tree, i, "dial"))
 		} else {
 			p[i].dial, ok = v.(string)
 			if !ok {
 				errs = append(errs, typeError(tree, "dial", "string", i))
+			} else {
+				host, _, err := net.SplitHostPort(p[i].dial)
+				if err != nil {
+					errs = append(errs, wrapError(tree, "dial", i, err))
+				} else {
+					p[i].config = &tls.Config{ServerName: host}
+				}
 			}
-			host, _, err := net.SplitHostPort(p[i].dial)
-			if err != nil {
-				errs = append(errs, fmt.Sprintf("%v: error parsing proxies[%d].dial: %v", tree.GetPosition("dial"), i, err))
-			}
-			p[i].config = &tls.Config{ServerName: host}
 		}
 		v = tree.Get("bind")
 		if v == nil {
-			errs = append(errs, missingError(tree, "bind", i))
+			errs = append(errs, missingError(tree, i, "bind"))
 		} else {
 			bind, ok := v.(string)
 			if !ok {
 				errs = append(errs, typeError(tree, "bind", "string", i))
-			}
-			laddr, err := net.ResolveTCPAddr("tcp", bind)
-			if err != nil {
-				errs = append(errs, fmt.Sprintf("%v: proxies[%d].bind: %v", tree.GetPosition("bind"), i, err))
-			}
-			p[i].l, err = net.ListenTCP("tcp", laddr)
-			if err != nil {
-				errs = append(errs, fmt.Sprintf("%v: proxies[%d].bind: %v", tree.GetPosition("bind"), i, err))
+			} else {
+				laddr, err := net.ResolveTCPAddr("tcp", bind)
+				if err != nil {
+					errs = append(errs, wrapError(tree, "bind", i, err))
+				} else {
+					p[i].l, err = net.ListenTCP("tcp", laddr)
+					if err != nil {
+						errs = append(errs, wrapError(tree, "bind", i, err))
+					}
+				}
 			}
 		}
 	}
@@ -111,10 +116,14 @@ func main() {
 	p[0].serve()
 }
 
-func missingError(tree *toml.TomlTree, key string, i int) string {
-	return fmt.Sprintf("%v: proxies[%v].%v is missing", tree.GetPosition(""), i, key)
+func missingError(tree *toml.TomlTree, i int, key string) string {
+	return fmt.Sprintf("%v: missing proxies[%v].%v", tree.GetPosition(""), i, key)
 }
 
 func typeError(tree *toml.TomlTree, key, expectedType string, i int) string {
-	return fmt.Sprintf("%v: type of proxies[%v].%v is not %v", tree.GetPosition(key), i, key, expectedType)
+	return fmt.Sprintf("%v: proxies[%v].%v should be a %v", tree.GetPosition(key), i, key, expectedType)
+}
+
+func wrapError(tree *toml.TomlTree, key string, i int, err error) string {
+	return fmt.Sprintf("%v: proxies[%v].%v: %v", tree.GetPosition(key), i, key, err)
 }
