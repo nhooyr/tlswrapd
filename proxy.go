@@ -12,11 +12,38 @@ import (
 var d = &net.Dialer{Timeout: 10 * time.Second, KeepAlive: 30 * time.Second}
 
 type proxy struct {
-	name     string
-	dial     string
-	protocol string
+	Name     string `toml:"name"`
+	Dial     string `toml:"dial"`
+	Bind     string `toml:"bind"`
+	Protocol string `toml:"protocol,optional"`
 	l        *net.TCPListener
 	config   *tls.Config
+}
+
+func (p *proxy) InitName() error {
+	p.Name += ": "
+	return nil
+}
+
+func (p *proxy) InitDial() error {
+	host, _, err := net.SplitHostPort(p.Dial)
+	if err != nil {
+		return err
+	}
+	p.config = &tls.Config{ServerName: host}
+	return nil
+}
+
+func (p *proxy) InitBind() error {
+	laddr, err := net.ResolveTCPAddr("tcp", p.Bind)
+	if err != nil {
+		return err
+	}
+	p.l, err = net.ListenTCP("tcp", laddr)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (p *proxy) serve() {
@@ -50,7 +77,7 @@ func (p *proxy) handle(c1 *net.TCPConn) {
 	raddr := c1.RemoteAddr()
 	p.logf("accepted %v", raddr)
 	defer p.logf("disconnected %v", raddr)
-	c, err := d.Dial("tcp", p.dial)
+	c, err := d.Dial("tcp", p.Dial)
 	if err != nil {
 		c1.Close()
 		p.log(err)
@@ -88,13 +115,13 @@ func (p *proxy) handle(c1 *net.TCPConn) {
 }
 
 func (p *proxy) logf(format string, v ...interface{}) {
-	logger.Printf(p.name+format, v...)
+	logger.Printf(p.Name+format, v...)
 }
 
 func (p *proxy) log(err error) {
-	logger.Print(p.name, err)
+	logger.Print(p.Name, err)
 }
 
 func (p *proxy) fatal(err error) {
-	logger.Fatal(p.name, err)
+	logger.Fatal(p.Name, err)
 }
