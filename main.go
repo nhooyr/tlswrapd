@@ -13,7 +13,7 @@ import (
 var logger *log.Logger
 
 type config struct {
-	Proxies []*proxy `toml:"proxies"`
+	Proxies []*proxy
 }
 
 func main() {

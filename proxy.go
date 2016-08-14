@@ -12,10 +12,10 @@ import (
 var d = &net.Dialer{Timeout: 10 * time.Second, KeepAlive: 30 * time.Second}
 
 type proxy struct {
-	Name     string `toml:"name"`
-	Dial     string `toml:"dial"`
-	Bind     string `toml:"bind"`
-	Protocol string `toml:"protocol,optional"`
+	Name     string
+	Dial     string
+	Bind     string
+	Protocol string `toml:"optional"`
 	l        *net.TCPListener
 	config   *tls.Config
 }
