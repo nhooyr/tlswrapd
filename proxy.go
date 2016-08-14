@@ -40,10 +40,7 @@ func (p *proxy) InitBind() error {
 		return err
 	}
 	p.l, err = net.ListenTCP("tcp", laddr)
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }
 
 func (p *proxy) serve() {

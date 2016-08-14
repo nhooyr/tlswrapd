@@ -24,11 +24,8 @@ func main() {
 	logger = log.New(os.Stderr, *timestamps)
 
 	c := new(config)
-	if errs := toml.UnmarshalFile(*configPath, c); errs != nil {
-		for _, err := range errs {
-			logger.Print(err)
-		}
-		os.Exit(1)
+	if err := toml.Unmarshal(*configPath, c); err != nil {
+		logger.Fatal(err)
 	}
 
 	sigs := make(chan os.Signal, 1)
