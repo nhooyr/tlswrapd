@@ -24,7 +24,7 @@ func main() {
 	logger = log.New(os.Stderr, *timestamps)
 
 	c := new(config)
-	if err := toml.Unmarshal(*configPath, c); err != nil {
+	if err := toml.UnmarshalFile(*configPath, c); err != nil {
 		logger.Fatal(err)
 	}
 

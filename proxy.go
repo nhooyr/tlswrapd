@@ -8,21 +8,34 @@ import (
 	"time"
 )
 
-// TODO optimize
-var d = &net.Dialer{Timeout: 10 * time.Second, KeepAlive: 30 * time.Second}
+// TODO optimize.
+var d = &net.Dialer{
+	Timeout:   10 * time.Second,
+	KeepAlive: 30 * time.Second,
+	DualStack: true,
+}
 
 type proxy struct {
-	Name     string
-	Dial     string
-	Bind     string
-	Protocol string `toml:"optional"`
-	l        *net.TCPListener
-	config   *tls.Config
+	Name      string
+	Bind      string
+	Dial      string
+	Protocols []string `toml:"optional"`
+	l         *net.TCPListener
+	config    *tls.Config
 }
 
 func (p *proxy) InitName() error {
 	p.Name += ": "
 	return nil
+}
+
+func (p *proxy) InitBind() error {
+	laddr, err := net.ResolveTCPAddr("tcp", p.Bind)
+	if err != nil {
+		return err
+	}
+	p.l, err = net.ListenTCP("tcp", laddr)
+	return err
 }
 
 func (p *proxy) InitDial() error {
@@ -34,13 +47,10 @@ func (p *proxy) InitDial() error {
 	return nil
 }
 
-func (p *proxy) InitBind() error {
-	laddr, err := net.ResolveTCPAddr("tcp", p.Bind)
-	if err != nil {
-		return err
-	}
-	p.l, err = net.ListenTCP("tcp", laddr)
-	return err
+func (p *proxy) InitProtocols() error {
+	// p.config will always be non-nil because of InitDial
+	p.config.NextProtos = p.Protocols
+	return nil
 }
 
 func (p *proxy) serve() {
