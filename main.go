@@ -38,7 +38,9 @@ func main() {
 
 	logger.Print("initialized")
 	for i := 1; i < len(c.Proxies); i++ {
-		go logger.Fatal(c.Proxies[i].serve())
+		go func(i int) {
+			logger.Fatal(c.Proxies[i].serve())
+		}(i)
 	}
 	logger.Fatal(c.Proxies[0].serve())
 }

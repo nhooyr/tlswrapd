@@ -4,7 +4,6 @@ import (
 	"crypto/tls"
 	"io"
 	"net"
-	"sync"
 	"time"
 )
 
@@ -78,48 +77,44 @@ var d = &net.Dialer{
 	DualStack: true,
 }
 
-// TODO look over
-func (p *proxy) handle(c1 *net.TCPConn) {
-	c1.SetKeepAlive(true)
-	c1.SetKeepAlivePeriod(30 * time.Second)
-	raddr := c1.RemoteAddr()
+// TODO What is the compare and swap stuff in tls.Conn.Close()?
+func (p *proxy) handle(tc1 *net.TCPConn) {
+	tc1.SetKeepAlive(true)
+	tc1.SetKeepAlivePeriod(30 * time.Second)
+	raddr := tc1.RemoteAddr()
 	p.logf("accepted %v", raddr)
 	defer p.logf("disconnected %v", raddr)
 	c, err := d.Dial("tcp", p.Dial)
 	if err != nil {
-		c1.Close()
+		tc1.Close()
 		p.log(err)
 		return
 	}
-	tc := c.(*net.TCPConn)
+	tc2 := c.(*net.TCPConn)
 	c2 := tls.Client(c, p.config)
 	err = c2.Handshake()
 	if err != nil {
-		c1.Close()
+		tc1.Close()
 		p.log(err)
 		return
 	}
-	var wg sync.WaitGroup
-	wg.Add(2)
+	done := make(chan struct{})
 	go func() {
-		_, err := io.Copy(c2, c1)
+		_, err := io.Copy(c2, tc1)
 		if err != nil {
 			p.log(err)
 		}
-		tc.CloseWrite()
-		c1.CloseRead()
-		wg.Done()
+		tc2.CloseWrite()
+		tc1.CloseRead()
+		close(done)
 	}()
-	go func() {
-		_, err = io.Copy(c1, c2)
-		if err != nil {
-			p.log(err)
-		}
-		c1.CloseWrite()
-		tc.CloseRead()
-		wg.Done()
-	}()
-	wg.Wait()
+	_, err = io.Copy(tc1, c2)
+	if err != nil {
+		p.log(err)
+	}
+	tc1.CloseWrite()
+	tc2.CloseRead()
+	<-done
 }
 
 func (p *proxy) logf(format string, v ...interface{}) {
