@@ -40,7 +40,6 @@ func (p *proxy) InitDial() error {
 }
 
 func (p *proxy) InitProtocols() error {
-	// p.config will always be non-nil because of InitDial
 	p.config.NextProtos = p.Protocols
 	return nil
 }
@@ -78,6 +77,7 @@ var d = &net.Dialer{
 }
 
 // TODO What is the compare and swap stuff in tls.Conn.Close()?
+// TODO better logging
 func (p *proxy) handle(tc1 *net.TCPConn) {
 	tc1.SetKeepAlive(true)
 	tc1.SetKeepAlivePeriod(30 * time.Second)
