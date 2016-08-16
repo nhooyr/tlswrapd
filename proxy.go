@@ -8,13 +8,6 @@ import (
 	"time"
 )
 
-// TODO optimize.
-var d = &net.Dialer{
-	Timeout:   10 * time.Second,
-	KeepAlive: 30 * time.Second,
-	DualStack: true,
-}
-
 type proxy struct {
 	Name      string
 	Bind      string
@@ -53,7 +46,7 @@ func (p *proxy) InitProtocols() error {
 	return nil
 }
 
-func (p *proxy) serve() {
+func (p *proxy) serve() error {
 	var tempDelay time.Duration
 	for {
 		c, err := p.l.AcceptTCP()
@@ -71,13 +64,21 @@ func (p *proxy) serve() {
 				time.Sleep(tempDelay)
 				continue
 			}
-			p.fatal(err)
+			return err
 		}
 		tempDelay = 0
 		go p.handle(c)
 	}
 }
 
+// TODO optimize.
+var d = &net.Dialer{
+	Timeout:   10 * time.Second,
+	KeepAlive: 30 * time.Second,
+	DualStack: true,
+}
+
+// TODO look over
 func (p *proxy) handle(c1 *net.TCPConn) {
 	c1.SetKeepAlive(true)
 	c1.SetKeepAlivePeriod(30 * time.Second)
@@ -127,8 +128,4 @@ func (p *proxy) logf(format string, v ...interface{}) {
 
 func (p *proxy) log(err error) {
 	logger.Print(p.Name, err)
-}
-
-func (p *proxy) fatal(err error) {
-	logger.Fatal(p.Name, err)
 }
