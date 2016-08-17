@@ -92,7 +92,7 @@ func (p *proxy) handle(tc1 *net.TCPConn) {
 	err = c2.Handshake()
 	if err != nil {
 		tc1.Close()
-		p.logf("TLS handshake error from %s: %v", raddr, err)
+		p.logf("TLS handshake error from %v: %v", raddr, err)
 		return
 	}
 	tc1.SetKeepAlive(true)
