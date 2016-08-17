@@ -77,10 +77,7 @@ var d = &net.Dialer{
 }
 
 // TODO What is the compare and swap stuff in tls.Conn.Close()?
-// TODO better logging
 func (p *proxy) handle(tc1 *net.TCPConn) {
-	tc1.SetKeepAlive(true)
-	tc1.SetKeepAlivePeriod(30 * time.Second)
 	raddr := tc1.RemoteAddr()
 	p.logf("accepted %v", raddr)
 	defer p.logf("disconnected %v", raddr)
@@ -95,9 +92,11 @@ func (p *proxy) handle(tc1 *net.TCPConn) {
 	err = c2.Handshake()
 	if err != nil {
 		tc1.Close()
-		p.log(err)
+		p.logf("TLS handshake error from %s: %v", raddr, err)
 		return
 	}
+	tc1.SetKeepAlive(true)
+	tc1.SetKeepAlivePeriod(30 * time.Second)
 	done := make(chan struct{})
 	go func() {
 		_, err := io.Copy(c2, tc1)
