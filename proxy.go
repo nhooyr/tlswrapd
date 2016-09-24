@@ -5,42 +5,45 @@ import (
 	"io"
 	"net"
 	"time"
+
+	"github.com/nhooyr/log"
+	"github.com/nhooyr/toml"
 )
 
 type proxy struct {
-	Name      string
-	Bind      string
-	Dial      string
-	Protocols []string `toml:"optional"`
+	name string
+	Bind struct {
+		Val toml.NonEmptyString
+		*toml.Location
+	} `toml:"single"`
+	Dial struct {
+		Val toml.NonEmptyString
+		*toml.Location
+	} `toml:"single"`
+	Protocols []toml.NonEmptyString
 	l         *net.TCPListener
 	config    *tls.Config
 }
 
-func (p *proxy) InitName() error {
-	p.Name += ": "
-	return nil
-}
-
-func (p *proxy) InitBind() error {
-	laddr, err := net.ResolveTCPAddr("tcp", p.Bind)
+func (p *proxy) InitToml() error {
+	laddr, err := net.ResolveTCPAddr("tcp", string(p.Bind.Val))
 	if err != nil {
-		return err
+		return p.Bind.WrapError(err)
 	}
 	p.l, err = net.ListenTCP("tcp", laddr)
-	return err
-}
-
-func (p *proxy) InitDial() error {
-	host, _, err := net.SplitHostPort(p.Dial)
 	if err != nil {
-		return err
+		return p.Bind.WrapError(err)
+	}
+	host, _, err := net.SplitHostPort(string(p.Dial.Val))
+	if err != nil {
+		return p.Dial.WrapError(err)
 	}
 	p.config = &tls.Config{ServerName: host}
-	return nil
-}
-
-func (p *proxy) InitProtocols() error {
-	p.config.NextProtos = p.Protocols
+	protos := make([]string, len(p.Protocols))
+	for i := range p.Protocols {
+		protos[i] = string(p.Protocols[i])
+	}
+	p.config.NextProtos = protos
 	return nil
 }
 
@@ -81,7 +84,7 @@ func (p *proxy) handle(tc1 *net.TCPConn) {
 	raddr := tc1.RemoteAddr()
 	p.logf("accepted %v", raddr)
 	defer p.logf("disconnected %v", raddr)
-	c, err := d.Dial("tcp", p.Dial)
+	c, err := d.Dial("tcp", string(p.Dial))
 	if err != nil {
 		tc1.Close()
 		p.log(err)
@@ -117,9 +120,9 @@ func (p *proxy) handle(tc1 *net.TCPConn) {
 }
 
 func (p *proxy) logf(format string, v ...interface{}) {
-	logger.Printf(p.Name+format, v...)
+	log.Printf(string(p.name)+format, v...)
 }
 
 func (p *proxy) log(err error) {
-	logger.Print(p.Name, err)
+	log.Print(p.name, err)
 }
