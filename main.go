@@ -22,18 +22,17 @@ func main() {
 
 	configPath := flag.String("c", "/usr/local/etc/tlswrapd/config.json", "path to the configuration file")
 	flag.Parse()
-
-	proxies := make(map[string]*proxy)
 	f, err := os.Open(*configPath)
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	proxies := make(map[string]*proxy)
 	err = json.NewDecoder(f).Decode(&proxies)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	log.Print("initialized")
 	for name, p := range proxies {
 		p.name = name + ": "
 		p.init()
@@ -41,5 +40,6 @@ func main() {
 			log.Fatal(p.serve())
 		}(p)
 	}
+	log.Print("initialized")
 	runtime.Goexit()
 }

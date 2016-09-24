@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"io"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/nhooyr/log"
@@ -15,53 +16,67 @@ type proxy struct {
 	Bind   string   `json:"bind"`
 	Dial   string   `json:"dial"`
 	Protos []string `json:"protos"`
-	l      *net.TCPListener
+	l      net.Listener
 	config *tls.Config
 }
 
 func (p *proxy) init() error {
-	laddr, err := net.ResolveTCPAddr("tcp", p.Bind)
-	if err != nil {
-		return err
-	}
-	p.l, err = net.ListenTCP("tcp", laddr)
-	if err != nil {
-		return err
-	}
 	host, _, err := net.SplitHostPort(p.Dial)
 	if err != nil {
 		return err
 	}
 	p.config = &tls.Config{ServerName: host, NextProtos: p.Protos}
+	laddr, err := net.ResolveTCPAddr("tcp", p.Bind)
+	if err != nil {
+		return err
+	}
+	l, err := net.ListenTCP("tcp", laddr)
+	if err != nil {
+		return err
+	}
+	p.l = tcpKeepAliveListener{l}
 	return nil
 }
 
+type tcpKeepAliveListener struct {
+	*net.TCPListener
+}
+
+func (ln tcpKeepAliveListener) Accept() (c net.Conn, err error) {
+	tc, err := ln.AcceptTCP()
+	if err != nil {
+		return
+	}
+	tc.SetKeepAlive(true)
+	tc.SetKeepAlivePeriod(30 * time.Second)
+	return tc, nil
+}
+
 func (p *proxy) serve() error {
-	var tempDelay time.Duration
+	var delay time.Duration
 	for {
-		c, err := p.l.AcceptTCP()
+		c, err := p.l.Accept()
 		if err != nil {
 			if ne, ok := err.(net.Error); ok && ne.Temporary() {
-				if tempDelay == 0 {
-					tempDelay = 5 * time.Millisecond
+				if delay == 0 {
+					delay = 5 * time.Millisecond
 				} else {
-					tempDelay *= 2
+					delay *= 2
 				}
-				if tempDelay > time.Second {
-					tempDelay = time.Second
+				if delay > time.Second {
+					delay = time.Second
 				}
-				p.logf("%v; retrying in %v", err, tempDelay)
-				time.Sleep(tempDelay)
+				p.logf("%v; retrying in %v", err, delay)
+				time.Sleep(delay)
 				continue
 			}
 			return err
 		}
-		tempDelay = 0
+		delay = 0
 		go p.handle(c)
 	}
 }
 
-// TODO optimize.
 var d = &net.Dialer{
 	Timeout:   10 * time.Second,
 	KeepAlive: 30 * time.Second,
@@ -69,42 +84,45 @@ var d = &net.Dialer{
 }
 
 // TODO What is the compare and swap stuff in tls.Conn.Close()?
-func (p *proxy) handle(tc1 *net.TCPConn) {
-	raddr := tc1.RemoteAddr()
+func (p *proxy) handle(c1 net.Conn) {
+	raddr := c1.RemoteAddr()
 	p.logf("accepted %v", raddr)
 	defer p.logf("disconnected %v", raddr)
-	c, err := d.Dial("tcp", p.Dial)
+	tc, err := d.Dial("tcp", p.Dial)
 	if err != nil {
-		tc1.Close()
+		c1.Close()
 		p.log(err)
 		return
 	}
-	tc2 := c.(*net.TCPConn)
-	c2 := tls.Client(c, p.config)
+	c2 := tls.Client(tc, p.config)
 	err = c2.Handshake()
 	if err != nil {
-		tc1.Close()
+		c1.Close()
+		tc.Close()
 		p.logf("TLS handshake error from %v: %v", raddr, err)
 		return
 	}
-	tc1.SetKeepAlive(true)
-	tc1.SetKeepAlivePeriod(30 * time.Second)
 	done := make(chan struct{})
+	var once sync.Once
 	go func() {
-		_, err := io.Copy(c2, tc1)
+		_, err := io.Copy(c2, c1)
 		if err != nil {
 			p.log(err)
 		}
-		tc2.CloseWrite()
-		tc1.CloseRead()
+		once.Do(func() {
+			c2.Close()
+			c1.Close()
+		})
 		close(done)
 	}()
-	_, err = io.Copy(tc1, c2)
+	_, err = io.Copy(c1, c2)
 	if err != nil {
 		p.log(err)
 	}
-	tc1.CloseWrite()
-	tc2.CloseRead()
+	once.Do(func() {
+		c1.Close()
+		c2.Close()
+	})
 	<-done
 }
 
