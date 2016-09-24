@@ -7,43 +7,32 @@ import (
 	"time"
 
 	"github.com/nhooyr/log"
-	"github.com/nhooyr/toml"
 )
 
+// TODO better config file format and library
 type proxy struct {
-	name string
-	Bind struct {
-		Val toml.NonEmptyString
-		*toml.Location
-	} `toml:"single"`
-	Dial struct {
-		Val toml.NonEmptyString
-		*toml.Location
-	} `toml:"single"`
-	Protocols []toml.NonEmptyString
-	l         *net.TCPListener
-	config    *tls.Config
+	name   string
+	Bind   string   `json:"bind"`
+	Dial   string   `json:"dial"`
+	Protos []string `json:"protos"`
+	l      *net.TCPListener
+	config *tls.Config
 }
 
-func (p *proxy) InitToml() error {
-	laddr, err := net.ResolveTCPAddr("tcp", string(p.Bind.Val))
+func (p *proxy) init() error {
+	laddr, err := net.ResolveTCPAddr("tcp", p.Bind)
 	if err != nil {
-		return p.Bind.WrapError(err)
+		return err
 	}
 	p.l, err = net.ListenTCP("tcp", laddr)
 	if err != nil {
-		return p.Bind.WrapError(err)
+		return err
 	}
-	host, _, err := net.SplitHostPort(string(p.Dial.Val))
+	host, _, err := net.SplitHostPort(p.Dial)
 	if err != nil {
-		return p.Dial.WrapError(err)
+		return err
 	}
-	p.config = &tls.Config{ServerName: host}
-	protos := make([]string, len(p.Protocols))
-	for i := range p.Protocols {
-		protos[i] = string(p.Protocols[i])
-	}
-	p.config.NextProtos = protos
+	p.config = &tls.Config{ServerName: host, NextProtos: p.Protos}
 	return nil
 }
 
@@ -84,7 +73,7 @@ func (p *proxy) handle(tc1 *net.TCPConn) {
 	raddr := tc1.RemoteAddr()
 	p.logf("accepted %v", raddr)
 	defer p.logf("disconnected %v", raddr)
-	c, err := d.Dial("tcp", string(p.Dial))
+	c, err := d.Dial("tcp", p.Dial)
 	if err != nil {
 		tc1.Close()
 		p.log(err)
@@ -120,7 +109,7 @@ func (p *proxy) handle(tc1 *net.TCPConn) {
 }
 
 func (p *proxy) logf(format string, v ...interface{}) {
-	log.Printf(string(p.name)+format, v...)
+	log.Printf(p.name+format, v...)
 }
 
 func (p *proxy) log(err error) {

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"os"
 	"os/signal"
@@ -8,18 +9,9 @@ import (
 	"syscall"
 
 	"github.com/nhooyr/log"
-	"github.com/nhooyr/toml"
 )
 
 func main() {
-	configPath := flag.String("c", "/usr/local/etc/tlswrapd/config.toml", "path to the configuration file")
-	flag.Parse()
-
-	proxies := make(map[string]*proxy)
-	if err := toml.UnmarshalFile(*configPath, &proxies); err != nil {
-		log.Fatal(err)
-	}
-
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
@@ -28,13 +20,26 @@ func main() {
 		os.Exit(0)
 	}()
 
+	configPath := flag.String("c", "/usr/local/etc/tlswrapd/config.json", "path to the configuration file")
+	flag.Parse()
+
+	proxies := make(map[string]*proxy)
+	f, err := os.Open(*configPath)
+	if err != nil {
+		log.Fatal(err)
+	}
+	err = json.NewDecoder(f).Decode(&proxies)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	log.Print("initialized")
-	for k, p := range proxies {
-		p.init(i)
-		go func(k string, p *proxy) {
-			p.name = k + ": "
+	for name, p := range proxies {
+		p.name = name + ": "
+		p.init()
+		go func(p *proxy) {
 			log.Fatal(p.serve())
-		}(k, p)
+		}(p)
 	}
 	runtime.Goexit()
 }
