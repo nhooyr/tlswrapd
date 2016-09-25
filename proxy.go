@@ -48,7 +48,7 @@ func (ln tcpKeepAliveListener) Accept() (c net.Conn, err error) {
 		return
 	}
 	tc.SetKeepAlive(true)
-	tc.SetKeepAlivePeriod(30 * time.Second)
+	tc.SetKeepAlivePeriod(d.KeepAlive)
 	return tc, nil
 }
 
@@ -78,28 +78,19 @@ func (p *proxy) serve() error {
 }
 
 var d = &net.Dialer{
-	Timeout:   10 * time.Second,
+	Timeout:   10 * time.Second, // tls.DialWithDialer includes tls handshake time
 	KeepAlive: 30 * time.Second,
 	DualStack: true,
 }
 
-// TODO What is the compare and swap stuff in tls.Conn.Close()?
 func (p *proxy) handle(c1 net.Conn) {
 	raddr := c1.RemoteAddr()
 	p.logf("accepted %v", raddr)
 	defer p.logf("disconnected %v", raddr)
-	tc, err := d.Dial("tcp", p.Dial)
+	c2, err := tls.DialWithDialer(d, "tcp", p.Dial, p.config)
 	if err != nil {
 		c1.Close()
 		p.log(err)
-		return
-	}
-	c2 := tls.Client(tc, p.config)
-	err = c2.Handshake()
-	if err != nil {
-		c1.Close()
-		tc.Close()
-		p.logf("TLS handshake error from %v: %v", raddr, err)
 		return
 	}
 	done := make(chan struct{})
