@@ -83,6 +83,7 @@ var d = &net.Dialer{
 	DualStack: true,
 }
 
+// TODO maybe better logging?
 func (p *proxy) handle(c1 net.Conn) {
 	raddr := c1.RemoteAddr()
 	p.logf("accepted %v", raddr)
