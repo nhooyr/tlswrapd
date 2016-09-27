@@ -26,7 +26,10 @@ func main() {
 	for name, p := range proxies {
 		go func(p *proxy, name string) {
 			p.name = name + ": "
-			p.init()
+			err = p.init()
+			if err != nil {
+				log.Fatal(err)
+			}
 			log.Printf("listening on %v", p.l.Addr())
 			log.Fatal(p.serve())
 		}(p, name)

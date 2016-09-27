@@ -67,7 +67,7 @@ func (p *proxy) serve() error {
 				if delay > time.Second {
 					delay = time.Second
 				}
-				p.logf("%v; retrying in %v", err, delay)
+				p.logf("accept error: %v; retrying in %v", err, delay)
 				time.Sleep(delay)
 				continue
 			}
@@ -79,7 +79,7 @@ func (p *proxy) serve() error {
 }
 
 var d = &net.Dialer{
-	Timeout:   10 * time.Second, // tls.DialWithDialer includes tls handshake time
+	Timeout:   10 * time.Second, // tls.DialWithDialer includes TLS handshake.
 	KeepAlive: 30 * time.Second,
 	DualStack: true,
 }
@@ -99,7 +99,7 @@ func (p *proxy) handle(c1 net.Conn) {
 	go func() {
 		_, err := io.Copy(c2, c1)
 		if err != nil {
-			p.log(err)
+			p.logf("error copying %v to %v: %v", raddr, c2.RemoteAddr(), err)
 		}
 		once.Do(func() {
 			c2.Close()
@@ -109,7 +109,7 @@ func (p *proxy) handle(c1 net.Conn) {
 	}()
 	_, err = io.Copy(c1, c2)
 	if err != nil {
-		p.log(err)
+		p.logf("error copying %v to %v: %v", c2.RemoteAddr(), raddr, err)
 	}
 	once.Do(func() {
 		c1.Close()
