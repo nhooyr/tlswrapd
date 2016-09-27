@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"flag"
 	"os"
 	"os/signal"
 	"runtime"
@@ -20,9 +19,7 @@ func main() {
 		os.Exit(0)
 	}()
 
-	configPath := flag.String("c", "/usr/local/etc/tlswrapd/config.json", "path to the configuration file")
-	flag.Parse()
-	f, err := os.Open(*configPath)
+	f, err := os.Open("config.json")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -30,7 +27,7 @@ func main() {
 	var proxies map[string]*proxy
 	err = json.NewDecoder(f).Decode(&proxies)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("error decoding config.json: %v", err)
 	}
 
 	for name, p := range proxies {
@@ -38,10 +35,10 @@ func main() {
 			p.name = name + ": "
 			err = p.init()
 			if err != nil {
-				log.Fatal(err)
+				p.fatal(err)
 			}
-			log.Printf("listening on %v", p.l.Addr())
-			log.Fatal(p.serve())
+			p.logf("listening on %v", p.l.Addr())
+			p.fatal(p.serve())
 		}(p, name)
 	}
 	runtime.Goexit()

@@ -63,7 +63,7 @@ func (p *proxy) serve() error {
 				if delay > time.Second {
 					delay = time.Second
 				}
-				p.logf("accept error: %v; retrying in %v", err, delay)
+				p.logf("%v; retrying in %v", err, delay)
 				time.Sleep(delay)
 				continue
 			}
@@ -120,4 +120,8 @@ func (p *proxy) logf(format string, v ...interface{}) {
 
 func (p *proxy) log(err error) {
 	log.Print(p.name, err)
+}
+
+func (p *proxy) fatal(err error) {
+	log.Fatal(p.name, err)
 }
