@@ -4,12 +4,22 @@ import (
 	"encoding/json"
 	"flag"
 	"os"
+	"os/signal"
 	"runtime"
+	"syscall"
 
 	"github.com/nhooyr/log"
 )
 
 func main() {
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-sigs
+		log.Print("stopping")
+		os.Exit(0)
+	}()
+
 	configPath := flag.String("c", "/usr/local/etc/tlswrapd/config.json", "path to the configuration file")
 	flag.Parse()
 	f, err := os.Open(*configPath)
