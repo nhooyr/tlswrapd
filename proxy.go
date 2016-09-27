@@ -12,11 +12,11 @@ import (
 
 // TODO better config file format and library
 type proxy struct {
-	name   string
 	Bind   string   `json:"bind"`
 	Dial   string   `json:"dial"`
 	Protos []string `json:"protos"`
 
+	name   string
 	l      net.Listener
 	config *tls.Config
 }
@@ -27,15 +27,11 @@ func (p *proxy) init() error {
 		return err
 	}
 	p.config = &tls.Config{ServerName: host, NextProtos: p.Protos}
-	laddr, err := net.ResolveTCPAddr("tcp", p.Bind)
+	l, err := net.Listen("tcp", p.Bind)
 	if err != nil {
 		return err
 	}
-	l, err := net.ListenTCP("tcp", laddr)
-	if err != nil {
-		return err
-	}
-	p.l = tcpKeepAliveListener{l}
+	p.l = tcpKeepAliveListener{l.(*net.TCPListener)}
 	return nil
 }
 
