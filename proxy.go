@@ -17,61 +17,60 @@ type proxy struct {
 	Protos []string `json:"protos"`
 
 	name   string
-	l      net.Listener
 	config *tls.Config
 }
 
-func (p *proxy) init() error {
+func (p *proxy) init() {
 	host, _, err := net.SplitHostPort(p.Dial)
 	if err != nil {
-		return err
+		p.fatal(err)
 	}
 	p.config = &tls.Config{ServerName: host, NextProtos: p.Protos}
+}
+
+func (p *proxy) listenAndServe() {
 	l, err := net.Listen("tcp", p.Bind)
 	if err != nil {
-		return err
+		p.fatal(err)
 	}
-	p.l = tcpKeepAliveListener{l.(*net.TCPListener)}
-	return nil
-}
-
-type tcpKeepAliveListener struct {
-	*net.TCPListener
-}
-
-func (ln tcpKeepAliveListener) Accept() (c net.Conn, err error) {
-	tc, err := ln.AcceptTCP()
-	if err != nil {
-		return
-	}
-	tc.SetKeepAlive(true)
-	tc.SetKeepAlivePeriod(d.KeepAlive)
-	return tc, nil
-}
-
-func (p *proxy) serve() error {
+	p.logf("listening on %v", l.Addr())
+	l = tcpKeepAliveListener{l.(*net.TCPListener)}
 	var delay time.Duration
 	for {
-		c, err := p.l.Accept()
+		c, err := l.Accept()
 		if err != nil {
 			if ne, ok := err.(net.Error); ok && ne.Temporary() {
 				if delay == 0 {
 					delay = 5 * time.Millisecond
 				} else {
 					delay *= 2
-				}
-				if delay > time.Second {
-					delay = time.Second
+					if delay > time.Second {
+						delay = time.Second
+					}
 				}
 				p.logf("%v; retrying in %v", err, delay)
 				time.Sleep(delay)
 				continue
 			}
-			return err
+			p.fatal(err)
 		}
 		delay = 0
 		go p.handle(c)
 	}
+}
+
+type tcpKeepAliveListener struct {
+	*net.TCPListener
+}
+
+func (l tcpKeepAliveListener) Accept() (c net.Conn, err error) {
+	tc, err := l.AcceptTCP()
+	if err != nil {
+		return
+	}
+	tc.SetKeepAlive(true)
+	tc.SetKeepAlivePeriod(d.KeepAlive)
+	return tc, nil
 }
 
 var d = &net.Dialer{
