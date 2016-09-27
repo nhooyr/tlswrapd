@@ -10,6 +10,12 @@ import (
 	"github.com/nhooyr/log"
 )
 
+var d = &net.Dialer{
+	Timeout:   10 * time.Second, // tls.DialWithDialer includes TLS handshake.
+	KeepAlive: 30 * time.Second,
+	DualStack: true,
+}
+
 // TODO better config file format and library
 type proxy struct {
 	Bind   string   `json:"bind"`
@@ -71,12 +77,6 @@ func (l tcpKeepAliveListener) Accept() (c net.Conn, err error) {
 	tc.SetKeepAlive(true)
 	tc.SetKeepAlivePeriod(d.KeepAlive)
 	return tc, nil
-}
-
-var d = &net.Dialer{
-	Timeout:   10 * time.Second, // tls.DialWithDialer includes TLS handshake.
-	KeepAlive: 30 * time.Second,
-	DualStack: true,
 }
 
 func (p *proxy) handle(c1 net.Conn) {
