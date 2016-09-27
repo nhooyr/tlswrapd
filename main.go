@@ -3,22 +3,12 @@ package main
 import (
 	"encoding/json"
 	"os"
-	"os/signal"
 	"runtime"
-	"syscall"
 
 	"github.com/nhooyr/log"
 )
 
 func main() {
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-	go func() {
-		<-sigs
-		log.Print("stopping")
-		os.Exit(0)
-	}()
-
 	f, err := os.Open("config.json")
 	if err != nil {
 		log.Fatal(err)
