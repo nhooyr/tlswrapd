@@ -12,7 +12,7 @@ import (
 
 var d = &net.Dialer{
 	Timeout:   10 * time.Second, // tls.DialWithDialer includes TLS handshake.
-	KeepAlive: 30 * time.Second,
+	KeepAlive: time.Minute,
 	DualStack: true,
 }
 
@@ -74,8 +74,8 @@ func (l tcpKeepAliveListener) Accept() (c net.Conn, err error) {
 	if err != nil {
 		return
 	}
-	tc.SetKeepAlive(true)
-	tc.SetKeepAlivePeriod(d.KeepAlive)
+	_ = tc.SetKeepAlive(true)
+	_ = tc.SetKeepAlivePeriod(d.KeepAlive)
 	return tc, nil
 }
 
@@ -85,7 +85,7 @@ func (p *proxy) handle(c1 net.Conn) {
 	defer p.logf("disconnected %v", raddr)
 	c2, err := tls.DialWithDialer(d, "tcp", p.Dial, p.config)
 	if err != nil {
-		c1.Close()
+		_ = c1.Close()
 		p.log(err)
 		return
 	}
@@ -97,8 +97,8 @@ func (p *proxy) handle(c1 net.Conn) {
 			p.logf("error copying %v to %v: %v", raddr, c2.RemoteAddr(), err)
 		}
 		once.Do(func() {
-			c2.Close()
-			c1.Close()
+			_ = c2.Close()
+			_ = c1.Close()
 		})
 		close(done)
 	}()
@@ -107,8 +107,8 @@ func (p *proxy) handle(c1 net.Conn) {
 		p.logf("error copying %v to %v: %v", c2.RemoteAddr(), raddr, err)
 	}
 	once.Do(func() {
-		c1.Close()
-		c2.Close()
+		_ = c1.Close()
+		_ = c2.Close()
 	})
 	<-done
 }
