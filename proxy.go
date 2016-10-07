@@ -40,7 +40,6 @@ func (p *proxy) listenAndServe() {
 		p.fatal(err)
 	}
 	p.logf("listening on %v", l.Addr())
-	l = tcpKeepAliveListener{l.(*net.TCPListener)}
 	var delay time.Duration
 	for {
 		c, err := l.Accept()
@@ -63,20 +62,6 @@ func (p *proxy) listenAndServe() {
 		delay = 0
 		go p.handle(c)
 	}
-}
-
-type tcpKeepAliveListener struct {
-	*net.TCPListener
-}
-
-func (l tcpKeepAliveListener) Accept() (c net.Conn, err error) {
-	tc, err := l.AcceptTCP()
-	if err != nil {
-		return
-	}
-	_ = tc.SetKeepAlive(true)
-	_ = tc.SetKeepAlivePeriod(d.KeepAlive)
-	return tc, nil
 }
 
 func (p *proxy) handle(c1 net.Conn) {
