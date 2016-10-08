@@ -10,12 +10,6 @@ import (
 	"github.com/nhooyr/log"
 )
 
-var d = &net.Dialer{
-	Timeout:   10 * time.Second, // tls.DialWithDialer includes TLS handshake.
-	KeepAlive: time.Minute,
-	DualStack: true,
-}
-
 // TODO better config file format and library
 type proxy struct {
 	Bind   string   `json:"bind"`
@@ -26,18 +20,21 @@ type proxy struct {
 	config *tls.Config
 }
 
-func (p *proxy) init() {
+func (p *proxy) init() error {
 	host, _, err := net.SplitHostPort(p.Dial)
 	if err != nil {
-		p.fatal(err)
+		return err
 	}
 	p.config = &tls.Config{ServerName: host, NextProtos: p.Protos}
+	return nil
 }
 
-func (p *proxy) listenAndServe() {
+func (p *proxy) listenAndServe() error {
+	// No KeepAlive listener because dialer uses
+	// KeepAlive and the connections are proxied.
 	l, err := net.Listen("tcp", p.Bind)
 	if err != nil {
-		p.fatal(err)
+		return err
 	}
 	p.logf("listening on %v", l.Addr())
 	var delay time.Duration
@@ -57,11 +54,17 @@ func (p *proxy) listenAndServe() {
 				time.Sleep(delay)
 				continue
 			}
-			p.fatal(err)
+			return err
 		}
 		delay = 0
 		go p.handle(c)
 	}
+}
+
+var d = &net.Dialer{
+	Timeout:   10 * time.Second, // tls.DialWithDialer includes TLS handshake.
+	KeepAlive: time.Minute,
+	DualStack: true,
 }
 
 func (p *proxy) handle(c1 net.Conn) {
@@ -104,8 +107,4 @@ func (p *proxy) logf(format string, v ...interface{}) {
 
 func (p *proxy) log(err error) {
 	log.Print(p.name, err)
-}
-
-func (p *proxy) fatal(err error) {
-	log.Fatal(p.name, err)
 }
