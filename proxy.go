@@ -70,8 +70,8 @@ func (p *proxy) handle(c1 net.Conn) {
 	defer p.logf("disconnected %v", raddr)
 	c2, err := tls.DialWithDialer(d, "tcp", p.Dial, p.config)
 	if err != nil {
-		_ = c1.Close()
 		p.log(err)
+		_ = c1.Close()
 		return
 	}
 	done := make(chan struct{})
