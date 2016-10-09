@@ -84,7 +84,7 @@ func (p *proxy) handle(c1 net.Conn) {
 		_ = c1.Close()
 		return
 	}
-	first := make(chan struct{}, 1)
+	first := make(chan<- struct{}, 1)
 	var wg sync.WaitGroup
 	cp := func(dst net.Conn, src net.Conn) {
 		buf := bufferPool.Get().([]byte)
