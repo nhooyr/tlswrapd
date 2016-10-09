@@ -25,7 +25,11 @@ func (p *proxy) init() error {
 	if err != nil {
 		return err
 	}
-	p.config = &tls.Config{ServerName: host, NextProtos: p.Protos}
+	p.config = &tls.Config{
+		NextProtos:         p.Protos,
+		ServerName:         host,
+		ClientSessionCache: tls.NewLRUClientSessionCache(-1),
+	}
 	return nil
 }
 
