@@ -85,9 +85,6 @@ func (p *proxy) handle(c1 net.Conn) {
 		_ = c1.Close()
 		return
 	}
-	// TODO use splice on linux
-	// TODO move tlsmuxd and tlswrapd into single tlsproxy package.
-	// TODO needs some timeout to prevent torshammer ddos
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() {
@@ -106,6 +103,9 @@ func (p *proxy) handle(c1 net.Conn) {
 	_ = c2.Close()
 }
 
+// TODO use splice on linux
+// TODO move tlsmuxd and tlswrapd into single tlsproxy package.
+// TODO needs some timeout to prevent torshammer ddos
 func cp(dst net.Conn, src net.Conn, ctx context.Context, cancel context.CancelFunc) error {
 	b := bufferPool.Get().([]byte)
 	defer bufferPool.Put(b)
