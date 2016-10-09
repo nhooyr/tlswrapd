@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"io"
 	"net"
+	"os"
 	"sync"
 	"time"
 
@@ -18,6 +19,16 @@ type proxy struct {
 
 	name   string
 	config *tls.Config
+}
+
+func (p *proxy) run(name string) {
+	p.name = name + ": "
+	p.config = &tls.Config{
+		NextProtos:         p.Protos,
+		ClientSessionCache: tls.NewLRUClientSessionCache(-1),
+		MinVersion:         tls.VersionTLS12,
+	}
+	p.fatal(p.listenAndServe())
 }
 
 func (p *proxy) listenAndServe() error {
@@ -106,4 +117,9 @@ func (p *proxy) logf(format string, v ...interface{}) {
 
 func (p *proxy) log(err error) {
 	log.Print(p.name, err)
+}
+
+func (p *proxy) fatal(err error) {
+	log.Print(p.name, err)
+	os.Exit(1)
 }

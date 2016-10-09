@@ -1,7 +1,6 @@
 package main
 
 import (
-	"crypto/tls"
 	"encoding/json"
 	"flag"
 	"os"
@@ -26,18 +25,7 @@ func main() {
 	_ = f.Close()
 
 	for name, p := range proxies {
-		go func(p *proxy, name string) {
-			p.name = name + ": "
-			p.config = &tls.Config{
-				NextProtos:         p.Protos,
-				ClientSessionCache: tls.NewLRUClientSessionCache(-1),
-				MinVersion:         tls.VersionTLS12,
-			}
-			if err != nil {
-				log.Fatalf("%s%v", p.name, err)
-			}
-			log.Fatalf("%s%v", p.name, p.listenAndServe())
-		}(p, name)
+		go p.run(name)
 	}
 	runtime.Goexit()
 }
