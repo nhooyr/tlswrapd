@@ -38,6 +38,7 @@ func (p *proxy) listenAndServe() error {
 	if err != nil {
 		return err
 	}
+	defer l.Close()
 	p.logf("listening on %v", l.Addr())
 	var delay time.Duration
 	for {
