@@ -106,7 +106,7 @@ func (p *proxy) handle(c1 net.Conn) {
 // TODO use splice on linux
 // TODO move tlsmuxd and tlswrapd into single tlsproxy package.
 // TODO needs some timeout to prevent torshammer ddos
-func cp(dst net.Conn, src net.Conn, ctx context.Context, cancel context.CancelFunc) error {
+func cp(dst io.Writer, src io.Reader, ctx context.Context, cancel context.CancelFunc) error {
 	b := bufferPool.Get().([]byte)
 	defer bufferPool.Put(b)
 	for {
