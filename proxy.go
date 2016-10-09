@@ -29,6 +29,7 @@ func (p *proxy) init() error {
 		NextProtos:         p.Protos,
 		ServerName:         host,
 		ClientSessionCache: tls.NewLRUClientSessionCache(-1),
+		MinVersion:         tls.VersionTLS12,
 	}
 	return nil
 }
