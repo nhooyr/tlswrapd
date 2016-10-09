@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"io"
 	"net"
@@ -67,38 +68,77 @@ var d = &net.Dialer{
 	DualStack: true,
 }
 
+// TODO is this pool even necessary?
+var bufferPool = sync.Pool{
+	New: func() interface{} {
+		// TODO maybe different buffer size?
+		return make([]byte, 1<<15)
+	},
+}
+
+// TODO needs timeout to prevent torshammer ddos
 func (p *proxy) handle(c1 net.Conn) {
-	raddr := c1.RemoteAddr()
-	p.logf("accepted %v", raddr)
-	defer p.logf("disconnected %v", raddr)
+	p.logf("accepted %v", c1.RemoteAddr())
+	defer p.logf("disconnected %v", c1.RemoteAddr())
 	c2, err := tls.DialWithDialer(d, "tcp", p.Dial, p.config)
 	if err != nil {
 		p.log(err)
 		_ = c1.Close()
 		return
 	}
+	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
-	var once sync.Once
 	go func() {
-		_, err := io.Copy(c2, c1)
+		err := cp(c2, c1, ctx)
 		if err != nil {
-			p.logf("error copying %v to %v: %v", raddr, c2.RemoteAddr(), err)
+			p.logf("error copying %v to %v: %v", c1.RemoteAddr(), c2.RemoteAddr(), err)
 		}
-		once.Do(func() {
-			_ = c2.Close()
-			_ = c1.Close()
-		})
+		cancel()
 		close(done)
 	}()
-	_, err = io.Copy(c1, c2)
+	err = cp(c1, c2, ctx)
 	if err != nil {
-		p.logf("error copying %v to %v: %v", c2.RemoteAddr(), raddr, err)
+		p.logf("error copying %v to %v: %v", c2.RemoteAddr(), c1.RemoteAddr(), err)
 	}
-	once.Do(func() {
-		_ = c1.Close()
-		_ = c2.Close()
-	})
+	cancel()
 	<-done
+	_ = c1.Close()
+	_ = c2.Close()
+}
+
+// TODO use splice on linux
+// TODO move tlsmuxd and tlswrapd into single tlsproxy package.
+func cp(dst io.Writer, src io.Reader, ctx context.Context) error {
+	b := bufferPool.Get().([]byte)
+	defer bufferPool.Put(b)
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		default:
+			nr, er := src.Read(b)
+			if nr > 0 {
+				select {
+				case <-ctx.Done():
+					return er
+				default:
+					nw, ew := dst.Write(b[:nr])
+					if ew != nil {
+						return ew
+					}
+					if nr != nw {
+						return io.ErrShortWrite
+					}
+				}
+			}
+			if er != nil {
+				if er != io.EOF {
+					return er
+				}
+				return nil
+			}
+		}
+	}
 }
 
 func (p *proxy) logf(format string, v ...interface{}) {
