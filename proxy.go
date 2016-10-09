@@ -20,20 +20,6 @@ type proxy struct {
 	config *tls.Config
 }
 
-func (p *proxy) init() error {
-	host, _, err := net.SplitHostPort(p.Dial)
-	if err != nil {
-		return err
-	}
-	p.config = &tls.Config{
-		NextProtos:         p.Protos,
-		ServerName:         host,
-		ClientSessionCache: tls.NewLRUClientSessionCache(-1),
-		MinVersion:         tls.VersionTLS12,
-	}
-	return nil
-}
-
 func (p *proxy) listenAndServe() error {
 	// No KeepAlive listener because dialer uses
 	// KeepAlive and the connections are proxied.
