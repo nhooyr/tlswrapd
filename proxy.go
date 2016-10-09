@@ -67,6 +67,14 @@ var d = &net.Dialer{
 	DualStack: true,
 }
 
+var bufferPool = sync.Pool{
+	New: func() interface{} {
+		// TODO maybe different buffer size?
+		// benchmark pls
+		return make([]byte, 1<<15)
+	},
+}
+
 func (p *proxy) handle(c1 net.Conn) {
 	p.logf("accepted %v", c1.RemoteAddr())
 	defer p.logf("disconnected %v", c1.RemoteAddr())
@@ -78,8 +86,11 @@ func (p *proxy) handle(c1 net.Conn) {
 	}
 	first := make(chan struct{}, 1)
 	var wg sync.WaitGroup
-	copyClose := func(dst net.Conn, src net.Conn) {
-		err := cp(dst, src)
+	cp := func(dst net.Conn, src net.Conn) {
+		buf := bufferPool.Get().([]byte)
+		// TODO use splice on linux
+		// TODO needs some timeout to prevent torshammer ddos
+		_, err := io.CopyBuffer(dst, src, buf)
 		select {
 		case first <- struct{}{}:
 			if err != nil {
@@ -89,46 +100,13 @@ func (p *proxy) handle(c1 net.Conn) {
 			_ = src.Close()
 		default:
 		}
+		bufferPool.Put(buf)
 		wg.Done()
 	}
 	wg.Add(2)
-	go copyClose(c1, c2)
-	go copyClose(c2, c1)
+	go cp(c1, c2)
+	go cp(c2, c1)
 	wg.Wait()
-}
-
-var bufferPool = sync.Pool{
-	New: func() interface{} {
-		// TODO maybe different buffer size?
-		// benchmark pls
-		return make([]byte, 1<<15)
-	},
-}
-
-// TODO use splice on linux
-// TODO move tlsmuxd and tlswrapd into single tlsproxy package.
-// TODO needs some timeout to prevent torshammer ddos
-func cp(dst io.Writer, src io.Reader) error {
-	buf := bufferPool.Get().([]byte)
-	defer bufferPool.Put(buf)
-	for {
-		nr, er := src.Read(buf)
-		if nr > 0 {
-			nw, ew := dst.Write(buf[:nr])
-			if ew != nil {
-				return ew
-			}
-			if nr != nw {
-				return io.ErrShortWrite
-			}
-		}
-		if er != nil {
-			if er != io.EOF {
-				return er
-			}
-			return nil
-		}
-	}
 }
 
 func (p *proxy) logf(format string, v ...interface{}) {
