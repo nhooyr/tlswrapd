@@ -68,15 +68,14 @@ var d = &net.Dialer{
 	DualStack: true,
 }
 
-// TODO is this pool even necessary?
 var bufferPool = sync.Pool{
 	New: func() interface{} {
 		// TODO maybe different buffer size?
+		// benchmark pls
 		return make([]byte, 1<<15)
 	},
 }
 
-// TODO needs timeout to prevent torshammer ddos
 func (p *proxy) handle(c1 net.Conn) {
 	p.logf("accepted %v", c1.RemoteAddr())
 	defer p.logf("disconnected %v", c1.RemoteAddr())
@@ -86,29 +85,28 @@ func (p *proxy) handle(c1 net.Conn) {
 		_ = c1.Close()
 		return
 	}
+	// TODO use splice on linux
+	// TODO move tlsmuxd and tlswrapd into single tlsproxy package.
+	// TODO needs some timeout to prevent torshammer ddos
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() {
-		err := cp(c2, c1, ctx)
+		err := cp(c1, c2, ctx, cancel)
 		if err != nil {
-			p.logf("error copying %v to %v: %v", c1.RemoteAddr(), c2.RemoteAddr(), err)
+			p.logf("error copying %v to %v: %v", c2.RemoteAddr(), c1.RemoteAddr(), err)
 		}
-		cancel()
 		close(done)
 	}()
-	err = cp(c1, c2, ctx)
+	err = cp(c2, c1, ctx, cancel)
 	if err != nil {
-		p.logf("error copying %v to %v: %v", c2.RemoteAddr(), c1.RemoteAddr(), err)
+		p.logf("error copying %v to %v: %v", c1.RemoteAddr(), c2.RemoteAddr(), err)
 	}
-	cancel()
 	<-done
 	_ = c1.Close()
 	_ = c2.Close()
 }
 
-// TODO use splice on linux
-// TODO move tlsmuxd and tlswrapd into single tlsproxy package.
-func cp(dst io.Writer, src io.Reader, ctx context.Context) error {
+func cp(dst net.Conn, src net.Conn, ctx context.Context, cancel context.CancelFunc) error {
 	b := bufferPool.Get().([]byte)
 	defer bufferPool.Put(b)
 	for {
@@ -124,14 +122,17 @@ func cp(dst io.Writer, src io.Reader, ctx context.Context) error {
 				default:
 					nw, ew := dst.Write(b[:nr])
 					if ew != nil {
+						cancel()
 						return ew
 					}
 					if nr != nw {
+						cancel()
 						return io.ErrShortWrite
 					}
 				}
 			}
 			if er != nil {
+				cancel()
 				if er != io.EOF {
 					return er
 				}
