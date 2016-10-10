@@ -23,8 +23,7 @@ func main() {
 	}
 	f.Close()
 
-	proxies := makeProxies(c)
-	for _, p := range proxies {
+	for _, p := range makeProxies(c) {
 		go p.listenAndServe()
 	}
 	runtime.Goexit()

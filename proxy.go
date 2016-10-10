@@ -24,21 +24,21 @@ type proxy struct {
 	config *tls.Config
 }
 
-func makeProxies(c config) (proxies []*proxy) {
-	proxies = make([]*proxy, 0, len(c))
-	for name, pconf := range c {
+func makeProxies(c config) []*proxy {
+	proxies := make([]*proxy, 0, len(c))
+	for name, pc := range c {
 		p := new(proxy)
-		p.bind = pconf.Bind
-		p.dial = pconf.Dial
+		p.bind = pc.Bind
+		p.dial = pc.Dial
 		p.log = log.Make(name + ":")
 		p.config = &tls.Config{
-			NextProtos:         pconf.Protos,
+			NextProtos:         pc.Protos,
 			ClientSessionCache: tls.NewLRUClientSessionCache(-1),
 			MinVersion:         tls.VersionTLS12,
 		}
 		proxies = append(proxies, p)
 	}
-	return
+	return proxies
 }
 
 func (p *proxy) listenAndServe() {
