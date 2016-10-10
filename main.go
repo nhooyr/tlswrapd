@@ -21,7 +21,7 @@ func main() {
 	if err = json.NewDecoder(f).Decode(&proxies); err != nil {
 		log.Fatalf("error decoding config.json: %v", err)
 	}
-	_ = f.Close()
+	f.Close()
 
 	for name, p := range proxies {
 		go p.run(name)

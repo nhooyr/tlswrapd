@@ -86,7 +86,7 @@ func (p *proxy) handle(c1 net.Conn) {
 	c2, err := tls.DialWithDialer(dialer, "tcp", p.Dial, p.config)
 	if err != nil {
 		p.log(err)
-		_ = c1.Close()
+		c1.Close()
 		p.logf("disconnected %v", c1.RemoteAddr())
 		return
 	}
@@ -102,8 +102,8 @@ func (p *proxy) handle(c1 net.Conn) {
 			if err != nil {
 				p.log(err)
 			}
-			_ = dst.Close()
-			_ = src.Close()
+			dst.Close()
+			src.Close()
 			p.logf("disconnected %v", c1.RemoteAddr())
 		default:
 		}
