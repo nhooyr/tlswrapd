@@ -17,14 +17,15 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	var proxies map[string]*proxy
-	if err = json.NewDecoder(f).Decode(&proxies); err != nil {
+	var c config
+	if err = json.NewDecoder(f).Decode(&c); err != nil {
 		log.Fatalf("error decoding config.json: %v", err)
 	}
 	f.Close()
 
-	for name, p := range proxies {
-		go p.run(name)
+	proxies := makeProxies(c)
+	for _, p := range proxies {
+		go p.listenAndServe()
 	}
 	runtime.Goexit()
 }

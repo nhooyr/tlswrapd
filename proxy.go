@@ -4,7 +4,6 @@ import (
 	"crypto/tls"
 	"io"
 	"net"
-	"os"
 	"sync"
 	"time"
 
@@ -12,30 +11,45 @@ import (
 )
 
 // TODO better config file format and library
-type proxy struct {
+type config map[string]*struct {
 	Bind   string   `json:"bind"`
 	Dial   string   `json:"dial"`
 	Protos []string `json:"protos"`
+}
 
-	name   string
+type proxy struct {
+	bind   string
+	dial   string
+	log    log.Logger
 	config *tls.Config
 }
 
-func (p *proxy) run(name string) {
-	p.name = name + ": "
-	p.config = &tls.Config{
-		NextProtos:         p.Protos,
-		ClientSessionCache: tls.NewLRUClientSessionCache(-1),
-		MinVersion:         tls.VersionTLS12,
+func makeProxies(c config) (proxies []*proxy) {
+	proxies = make([]*proxy, 0, len(c))
+	for name, pconf := range c {
+		p := new(proxy)
+		p.bind = pconf.Bind
+		p.dial = pconf.Dial
+		p.log = log.Make(name + ":")
+		p.config = &tls.Config{
+			NextProtos:         pconf.Protos,
+			ClientSessionCache: tls.NewLRUClientSessionCache(-1),
+			MinVersion:         tls.VersionTLS12,
+		}
+		proxies = append(proxies, p)
 	}
+	return
+}
+
+func (p *proxy) listenAndServe() {
 	// No KeepAlive listener because dialer uses
 	// KeepAlive and the connections are proxied.
-	l, err := net.Listen("tcp", p.Bind)
+	l, err := net.Listen("tcp", p.bind)
 	if err != nil {
-		p.fatal(err)
+		p.log.Fatal(err)
 	}
-	p.logf("listening on %v", l.Addr())
-	p.fatal(p.serve(l))
+	p.log.Printf("listening on %v", l.Addr())
+	p.log.Fatal(p.serve(l))
 }
 
 func (p *proxy) serve(l net.Listener) error {
@@ -53,7 +67,7 @@ func (p *proxy) serve(l net.Listener) error {
 						delay = time.Second
 					}
 				}
-				p.logf("%v; retrying in %v", err, delay)
+				p.log.Printf("%v; retrying in %v", err, delay)
 				time.Sleep(delay)
 				continue
 			}
@@ -79,15 +93,13 @@ var bufferPool = sync.Pool{
 	},
 }
 
-// TODO log package needs prefix loggers
-// TODO different config and resulting structures "newProxy(c *conf) *proxy"
 func (p *proxy) handle(c1 net.Conn) {
-	p.logf("accepted %v", c1.RemoteAddr())
-	c2, err := tls.DialWithDialer(dialer, "tcp", p.Dial, p.config)
+	p.log.Printf("accepted %v", c1.RemoteAddr())
+	c2, err := tls.DialWithDialer(dialer, "tcp", p.dial, p.config)
 	if err != nil {
-		p.log(err)
+		p.log.Print(err)
 		c1.Close()
-		p.logf("disconnected %v", c1.RemoteAddr())
+		p.log.Printf("disconnected %v", c1.RemoteAddr())
 		return
 	}
 	first := make(chan<- struct{}, 1)
@@ -100,27 +112,14 @@ func (p *proxy) handle(c1 net.Conn) {
 		select {
 		case first <- struct{}{}:
 			if err != nil {
-				p.log(err)
+				p.log.Print(err)
 			}
 			dst.Close()
 			src.Close()
-			p.logf("disconnected %v", c1.RemoteAddr())
+			p.log.Printf("disconnected %v", c1.RemoteAddr())
 		default:
 		}
 	}
 	go cp(c1, c2)
 	cp(c2, c1)
-}
-
-func (p *proxy) logf(format string, v ...interface{}) {
-	log.Printf(p.name+format, v...)
-}
-
-func (p *proxy) log(err error) {
-	log.Print(p.name, err)
-}
-
-func (p *proxy) fatal(err error) {
-	log.Print(p.name, err)
-	os.Exit(1)
 }
