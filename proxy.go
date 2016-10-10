@@ -64,7 +64,7 @@ func (p *proxy) listenAndServe() error {
 	}
 }
 
-var d = &net.Dialer{
+var dialer = &net.Dialer{
 	Timeout:   10 * time.Second, // tls.DialWithDialer includes TLS handshake.
 	KeepAlive: time.Minute,
 	DualStack: true,
@@ -80,15 +80,14 @@ var bufferPool = sync.Pool{
 
 func (p *proxy) handle(c1 net.Conn) {
 	p.logf("accepted %v", c1.RemoteAddr())
-	defer p.logf("disconnected %v", c1.RemoteAddr())
-	c2, err := tls.DialWithDialer(d, "tcp", p.Dial, p.config)
+	c2, err := tls.DialWithDialer(dialer, "tcp", p.Dial, p.config)
 	if err != nil {
 		p.log(err)
 		_ = c1.Close()
+		p.logf("disconnected %v", c1.RemoteAddr())
 		return
 	}
 	first := make(chan<- struct{}, 1)
-	var wg sync.WaitGroup
 	cp := func(dst net.Conn, src net.Conn) {
 		buf := bufferPool.Get().([]byte)
 		// TODO use splice on linux
@@ -101,15 +100,13 @@ func (p *proxy) handle(c1 net.Conn) {
 			}
 			_ = dst.Close()
 			_ = src.Close()
+			p.logf("disconnected %v", c1.RemoteAddr())
 		default:
 		}
 		bufferPool.Put(buf)
-		wg.Done()
 	}
-	wg.Add(2)
 	go cp(c1, c2)
-	go cp(c2, c1)
-	wg.Wait()
+	cp(c2, c1)
 }
 
 func (p *proxy) logf(format string, v ...interface{}) {
