@@ -11,7 +11,7 @@ import (
 )
 
 // TODO better config file format and library
-type proxyConf struct {
+type proxyConfig struct {
 	Bind   string   `json:"bind"`
 	Dial   string   `json:"dial"`
 	Protos []string `json:"protos"`
@@ -24,17 +24,17 @@ type proxy struct {
 	config *tls.Config
 }
 
-func newProxy(name string, pc *proxyConf) *proxy {
-	p := new(proxy)
-	p.bind = pc.Bind
-	p.dial = pc.Dial
-	p.log = log.Make(name + ":")
-	p.config = &tls.Config{
-		NextProtos:         pc.Protos,
-		ClientSessionCache: tls.NewLRUClientSessionCache(-1),
-		MinVersion:         tls.VersionTLS12,
+func newProxy(name string, pc *proxyConfig) *proxy {
+	return &proxy{
+		bind: pc.Bind,
+		dial: pc.Dial,
+		log:  log.Make(name + ":"),
+		config: &tls.Config{
+			NextProtos:         pc.Protos,
+			ClientSessionCache: tls.NewLRUClientSessionCache(-1),
+			MinVersion:         tls.VersionTLS12,
+		},
 	}
-	return p
 }
 
 func (p *proxy) listenAndServe() error {
