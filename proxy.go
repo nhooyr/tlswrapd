@@ -29,7 +29,7 @@ func newProxy(name string, pc *proxyConfig) *proxy {
 	return &proxy{
 		bind: pc.Bind,
 		dial: pc.Dial,
-		log:  log.Make(name + ":"),
+		log:  log.Make(name),
 		config: &tls.Config{
 			NextProtos:         pc.Protos,
 			ClientSessionCache: tls.NewLRUClientSessionCache(-1),
