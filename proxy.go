@@ -11,7 +11,7 @@ import (
 )
 
 // TODO better config file format and library
-type config map[string]*struct {
+type proxyConf struct {
 	Bind   string   `json:"bind"`
 	Dial   string   `json:"dial"`
 	Protos []string `json:"protos"`
@@ -24,32 +24,28 @@ type proxy struct {
 	config *tls.Config
 }
 
-func makeProxies(c config) []*proxy {
-	proxies := make([]*proxy, 0, len(c))
-	for name, pc := range c {
-		p := new(proxy)
-		p.bind = pc.Bind
-		p.dial = pc.Dial
-		p.log = log.Make(name + ":")
-		p.config = &tls.Config{
-			NextProtos:         pc.Protos,
-			ClientSessionCache: tls.NewLRUClientSessionCache(-1),
-			MinVersion:         tls.VersionTLS12,
-		}
-		proxies = append(proxies, p)
+func newProxy(name string, pc *proxyConf) *proxy {
+	p := new(proxy)
+	p.bind = pc.Bind
+	p.dial = pc.Dial
+	p.log = log.Make(name + ":")
+	p.config = &tls.Config{
+		NextProtos:         pc.Protos,
+		ClientSessionCache: tls.NewLRUClientSessionCache(-1),
+		MinVersion:         tls.VersionTLS12,
 	}
-	return proxies
+	return p
 }
 
-func (p *proxy) listenAndServe() {
+func (p *proxy) listenAndServe() error {
 	// No KeepAlive listener because dialer uses
 	// KeepAlive and the connections are proxied.
 	l, err := net.Listen("tcp", p.bind)
 	if err != nil {
-		p.log.Fatal(err)
+		return err
 	}
 	p.log.Printf("listening on %v", l.Addr())
-	p.log.Fatal(p.serve(l))
+	return p.serve(l)
 }
 
 func (p *proxy) serve(l net.Listener) error {
