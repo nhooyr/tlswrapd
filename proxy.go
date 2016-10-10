@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/nhooyr/log"
+	"github.com/nhooyr/netutil"
 )
 
 // TODO better config file format and library
@@ -38,9 +39,7 @@ func newProxy(name string, pc *proxyConfig) *proxy {
 }
 
 func (p *proxy) listenAndServe() error {
-	// No KeepAlive listener because dialer uses
-	// KeepAlive and the connections are proxied.
-	l, err := net.Listen("tcp", p.bind)
+	l, err := netutil.ListenTCPKeepAlive(p.bind)
 	if err != nil {
 		return err
 	}
@@ -76,7 +75,9 @@ func (p *proxy) serve(l net.Listener) error {
 }
 
 var dialer = &net.Dialer{
-	Timeout:   10 * time.Second, // tls.DialWithDialer includes TLS handshake.
+	// tls.DialWithDialer includes TLS handshake
+	// so the timeout is significantly longer.
+	Timeout:   10 * time.Second,
 	KeepAlive: time.Minute,
 	DualStack: true,
 }
