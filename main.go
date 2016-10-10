@@ -18,8 +18,7 @@ func main() {
 		log.Fatal(err)
 	}
 	var proxies map[string]*proxy
-	err = json.NewDecoder(f).Decode(&proxies)
-	if err != nil {
+	if err = json.NewDecoder(f).Decode(&proxies); err != nil {
 		log.Fatalf("error decoding config.json: %v", err)
 	}
 	_ = f.Close()

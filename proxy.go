@@ -81,7 +81,6 @@ var bufferPool = sync.Pool{
 
 // TODO log package needs prefix loggers
 // TODO different config and resulting structures "newProxy(c *conf) *proxy"
-// TODO check if we can use err local to the if statement.
 func (p *proxy) handle(c1 net.Conn) {
 	p.logf("accepted %v", c1.RemoteAddr())
 	c2, err := tls.DialWithDialer(dialer, "tcp", p.Dial, p.config)
