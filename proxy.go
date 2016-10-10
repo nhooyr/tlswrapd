@@ -28,18 +28,18 @@ func (p *proxy) run(name string) {
 		ClientSessionCache: tls.NewLRUClientSessionCache(-1),
 		MinVersion:         tls.VersionTLS12,
 	}
-	p.fatal(p.listenAndServe())
-}
-
-func (p *proxy) listenAndServe() error {
 	// No KeepAlive listener because dialer uses
 	// KeepAlive and the connections are proxied.
 	l, err := net.Listen("tcp", p.Bind)
 	if err != nil {
-		return err
+		p.fatal(err)
 	}
-	defer l.Close()
 	p.logf("listening on %v", l.Addr())
+	p.fatal(p.serve(l))
+}
+
+func (p *proxy) serve(l net.Listener) error {
+	defer l.Close()
 	var delay time.Duration
 	for {
 		c, err := l.Accept()
@@ -62,6 +62,7 @@ func (p *proxy) listenAndServe() error {
 		delay = 0
 		go p.handle(c)
 	}
+
 }
 
 var dialer = &net.Dialer{
@@ -78,6 +79,9 @@ var bufferPool = sync.Pool{
 	},
 }
 
+// TODO log package needs prefix loggers
+// TODO different config and resulting structures "newProxy(c *conf) *proxy"
+// TODO check if we can use err local to the if statement.
 func (p *proxy) handle(c1 net.Conn) {
 	p.logf("accepted %v", c1.RemoteAddr())
 	c2, err := tls.DialWithDialer(dialer, "tcp", p.Dial, p.config)
