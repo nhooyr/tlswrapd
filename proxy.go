@@ -90,6 +90,7 @@ func (p *proxy) handle(c1 net.Conn) {
 	first := make(chan<- struct{}, 1)
 	cp := func(dst net.Conn, src net.Conn) {
 		buf := bufferPool.Get().([]byte)
+		defer bufferPool.Put(buf)
 		// TODO use splice on linux
 		// TODO needs some timeout to prevent torshammer ddos
 		_, err := io.CopyBuffer(dst, src, buf)
@@ -103,7 +104,6 @@ func (p *proxy) handle(c1 net.Conn) {
 			p.logf("disconnected %v", c1.RemoteAddr())
 		default:
 		}
-		bufferPool.Put(buf)
 	}
 	go cp(c1, c2)
 	cp(c2, c1)
