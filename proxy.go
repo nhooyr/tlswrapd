@@ -2,9 +2,7 @@ package main
 
 import (
 	"crypto/tls"
-	"io"
 	"net"
-	"sync"
 	"time"
 
 	"github.com/nhooyr/log"
@@ -13,6 +11,7 @@ import (
 
 // TODO better config file format and library
 type proxyConfig struct {
+	name   string
 	Bind   string   `json:"bind"`
 	Dial   string   `json:"dial"`
 	Protos []string `json:"protos"`
@@ -25,11 +24,11 @@ type proxy struct {
 	config *tls.Config
 }
 
-func newProxy(name string, pc *proxyConfig) *proxy {
+func newProxy(pc *proxyConfig) *proxy {
 	return &proxy{
 		bind: pc.Bind,
 		dial: pc.Dial,
-		log:  log.Make(name),
+		log:  log.Make(pc.name),
 		config: &tls.Config{
 			NextProtos:         pc.Protos,
 			ClientSessionCache: tls.NewLRUClientSessionCache(-1),
@@ -82,41 +81,19 @@ var dialer = &net.Dialer{
 	DualStack: true,
 }
 
-var bufferPool = sync.Pool{
-	New: func() interface{} {
-		// TODO maybe different buffer size?
-		// benchmark pls
-		return make([]byte, 1<<15)
-	},
-}
-
 func (p *proxy) handle(c1 net.Conn) {
 	p.log.Printf("accepted %v", c1.RemoteAddr())
+	defer p.log.Printf("disconnected %v", c1.RemoteAddr())
+	defer c1.Close()
 	c2, err := tls.DialWithDialer(dialer, "tcp", p.dial, p.config)
 	if err != nil {
+		// TODO no tls handshake error specification so hard to distinguish errors.
 		p.log.Print(err)
-		c1.Close()
-		p.log.Printf("disconnected %v", c1.RemoteAddr())
 		return
 	}
-	first := make(chan<- struct{}, 1)
-	cp := func(dst net.Conn, src net.Conn) {
-		buf := bufferPool.Get().([]byte)
-		defer bufferPool.Put(buf)
-		// TODO use splice on linux
-		// TODO needs some timeout to prevent torshammer ddos
-		_, err := io.CopyBuffer(dst, src, buf)
-		select {
-		case first <- struct{}{}:
-			if err != nil {
-				p.log.Print(err)
-			}
-			dst.Close()
-			src.Close()
-			p.log.Printf("disconnected %v", c1.RemoteAddr())
-		default:
-		}
+	defer c2.Close()
+	err = netutil.Tunnel(c1, c2)
+	if err != nil {
+		p.log.Print(err)
 	}
-	go cp(c1, c2)
-	cp(c2, c1)
 }
