@@ -74,9 +74,7 @@ func (p *proxy) serve(l net.Listener) error {
 }
 
 var dialer = &net.Dialer{
-	// tls.DialWithDialer includes TLS handshake
-	// so the timeout is significantly longer.
-	Timeout:   10 * time.Second,
+	Timeout:   3 * time.Second,
 	KeepAlive: time.Minute,
 	DualStack: true,
 }
@@ -85,15 +83,20 @@ func (p *proxy) handle(c1 net.Conn) {
 	p.log.Printf("accepted %v", c1.RemoteAddr())
 	defer p.log.Printf("disconnected %v", c1.RemoteAddr())
 	defer c1.Close()
-	c2, err := tls.DialWithDialer(dialer, "tcp", p.dial, p.config)
+	// Not using tls.DialWithDialer because it does not label
+	// TLS handshake errors.
+	c2, err := dialer.Dial("tcp", p.dial)
 	if err != nil {
-		// TODO no tls handshake error specification so hard to distinguish errors.
 		p.log.Print(err)
 		return
 	}
 	defer c2.Close()
-	err = netutil.Tunnel(c1, c2)
-	if err != nil {
+	tlc := tls.Client(c2, p.config)
+	if err = tlc.Handshake(); err != nil {
+		p.log.Print("TLS handshake error from %v: %v", c2.RemoteAddr(), err)
+		return
+	}
+	if err = netutil.Tunnel(c1, tlc); err != nil {
 		p.log.Print(err)
 	}
 }
