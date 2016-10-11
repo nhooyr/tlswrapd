@@ -89,7 +89,7 @@ func (p *proxy) handle(c1 net.Conn) {
 	defer p.log.Printf("disconnected %v", c1.RemoteAddr())
 	defer c1.Close()
 	// Not using tls.DialWithDialer because it does not label
-	// TLS handshake errors.
+	// TLS handshake errors. TODO maybe it should?
 	c2, err := dialer.Dial("tcp", p.dial)
 	if err != nil {
 		p.log.Print(err)
