@@ -24,7 +24,11 @@ type proxy struct {
 	config *tls.Config
 }
 
-func newProxy(pc *proxyConfig) *proxy {
+func newProxy(pc *proxyConfig) (*proxy, error) {
+	host, _, err := net.SplitHostPort(pc.Dial)
+	if err != nil {
+		return nil, err
+	}
 	return &proxy{
 		bind: pc.Bind,
 		dial: pc.Dial,
@@ -33,8 +37,9 @@ func newProxy(pc *proxyConfig) *proxy {
 			NextProtos:         pc.Protos,
 			ClientSessionCache: tls.NewLRUClientSessionCache(-1),
 			MinVersion:         tls.VersionTLS12,
+			ServerName:         host,
 		},
-	}
+	}, nil
 }
 
 func (p *proxy) listenAndServe() error {
@@ -93,7 +98,7 @@ func (p *proxy) handle(c1 net.Conn) {
 	defer c2.Close()
 	tlc := tls.Client(c2, p.config)
 	if err = tlc.Handshake(); err != nil {
-		p.log.Print("TLS handshake error from %v: %v", c2.RemoteAddr(), err)
+		p.log.Printf("TLS handshake error from %v: %v", c2.RemoteAddr(), err)
 		return
 	}
 	if err = netutil.Tunnel(c1, tlc); err != nil {

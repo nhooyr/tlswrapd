@@ -26,7 +26,10 @@ func main() {
 	for name, pc := range config {
 		go func(name string, pc *proxyConfig) {
 			pc.name = name
-			p := newProxy(pc)
+			p, err := newProxy(pc)
+			if err != nil {
+				log.Make(name).Fatal(err)
+			}
 			p.log.Fatal(p.listenAndServe())
 		}(name, pc)
 	}
