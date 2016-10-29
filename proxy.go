@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/nhooyr/log"
-	"github.com/nhooyr/netutil"
 )
 
 // TODO better config file format and library
@@ -45,12 +44,30 @@ func newProxy(pc *proxyConfig) (*proxy, error) {
 }
 
 func (p *proxy) listenAndServe() error {
-	l, err := netutil.ListenTCPKeepAlive(p.bind)
+	l, err := net.Listen("tcp", p.bind)
 	if err != nil {
 		return err
 	}
 	p.log.Printf("listening on %v", l.Addr())
-	return p.serve(l)
+	return p.serve(tcpKeepAliveListener{l.(*net.TCPListener)})
+}
+
+type tcpKeepAliveListener struct {
+	*net.TCPListener
+}
+
+func (l tcpKeepAliveListener) Accept() (c net.Conn, err error) {
+	tc, err := l.AcceptTCP()
+	if err != nil {
+		return
+	}
+	if err = tc.SetKeepAlive(true); err != nil {
+		return
+	}
+	if err = tc.SetKeepAlivePeriod(time.Minute); err != nil {
+		return
+	}
+	return tc, nil
 }
 
 func (p *proxy) serve(l net.Listener) error {
@@ -83,7 +100,6 @@ func (p *proxy) serve(l net.Listener) error {
 var dialer = &net.Dialer{
 	Timeout:   3 * time.Second,
 	KeepAlive: time.Minute,
-	DualStack: true,
 }
 
 var bufferPool = sync.Pool{
