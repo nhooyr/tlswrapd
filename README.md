@@ -6,12 +6,12 @@
 	"serverSSH": {
 		"bind": "localhost:6621",
 		"dial": "example.com:https",
-		"protos": ["ssh"]
+		"proto": "ssh"
 	},
 	"serverVPN": {
 		"bind": "localhost:3000",
 		"dial": "example.com:https",
-		"protos": ["openvpn"]
+		"proto": "openvpn"
 	}
 }
 ```
