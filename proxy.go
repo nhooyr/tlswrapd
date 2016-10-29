@@ -2,7 +2,9 @@ package main
 
 import (
 	"crypto/tls"
+	"io"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/nhooyr/log"
@@ -84,12 +86,18 @@ var dialer = &net.Dialer{
 	DualStack: true,
 }
 
+var bufferPool = sync.Pool{
+	New: func() interface{} {
+		return make([]byte, 1<<16)
+	},
+}
+
 func (p *proxy) handle(c1 net.Conn) {
 	p.log.Printf("accepted %v", c1.RemoteAddr())
 	defer p.log.Printf("disconnected %v", c1.RemoteAddr())
 	defer c1.Close()
-	// Not using tls.DialWithDialer because it does not label
-	// TLS handshake errors. TODO maybe it should?
+	// Not using tls.DialWithDialer because it does not
+	// prefix handshake errors.
 	c2, err := dialer.Dial("tcp", p.dial)
 	if err != nil {
 		p.log.Print(err)
@@ -98,10 +106,20 @@ func (p *proxy) handle(c1 net.Conn) {
 	defer c2.Close()
 	tlc := tls.Client(c2, p.config)
 	if err = tlc.Handshake(); err != nil {
+		// TODO should the TLS library handle prefix?
 		p.log.Printf("TLS handshake error from %v: %v", c2.RemoteAddr(), err)
 		return
 	}
-	if err = netutil.Tunnel(c1, tlc); err != nil {
+	errc := make(chan error, 2)
+	cp := func(w io.Writer, r io.Reader) {
+		buf := bufferPool.Get().([]byte)
+		_, err := io.CopyBuffer(w, r, buf)
+		errc <- err
+		bufferPool.Put(buf)
+	}
+	go cp(struct{ io.Writer }{c1}, tlc)
+	go cp(tlc, struct{ io.Reader }{c1})
+	if err = <-errc; err != nil {
 		p.log.Print(err)
 	}
 }
