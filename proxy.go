@@ -13,10 +13,10 @@ import (
 
 // TODO better config file format and library
 type proxyConfig struct {
-	name   string
-	Bind   string   `json:"bind"`
-	Dial   string   `json:"dial"`
-	Protos []string `json:"protos"`
+	name  string
+	Bind  string `json:"bind"`
+	Dial  string `json:"dial"`
+	Proto string `json:"proto"`
 }
 
 type proxy struct {
@@ -36,7 +36,7 @@ func newProxy(pc *proxyConfig) (*proxy, error) {
 		dial: pc.Dial,
 		log:  log.Make(pc.name),
 		config: &tls.Config{
-			NextProtos:         pc.Protos,
+			NextProtos:         []string{pc.Proto},
 			ClientSessionCache: tls.NewLRUClientSessionCache(-1),
 			MinVersion:         tls.VersionTLS12,
 			ServerName:         host,
