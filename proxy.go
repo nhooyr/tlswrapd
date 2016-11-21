@@ -61,10 +61,12 @@ func (l tcpKeepAliveListener) Accept() (c net.Conn, err error) {
 	if err != nil {
 		return
 	}
-	if err = tc.SetKeepAlive(true); err != nil {
+	err = tc.SetKeepAlive(true)
+	if err != nil {
 		return
 	}
-	if err = tc.SetKeepAlivePeriod(time.Minute); err != nil {
+	err = tc.SetKeepAlivePeriod(time.Minute)
+	if err != nil {
 		return
 	}
 	return tc, nil
@@ -121,7 +123,8 @@ func (p *proxy) handle(c1 net.Conn) {
 	}
 	defer c2.Close()
 	tlc := tls.Client(c2, p.config)
-	if err = tlc.Handshake(); err != nil {
+	err = tlc.Handshake()
+	if err != nil {
 		// TODO should the TLS library handle prefix?
 		p.log.Printf("TLS handshake error from %v: %v", c2.RemoteAddr(), err)
 		return
@@ -135,7 +138,8 @@ func (p *proxy) handle(c1 net.Conn) {
 	}
 	go cp(struct{ io.Writer }{c1}, tlc)
 	go cp(tlc, struct{ io.Reader }{c1})
-	if err = <-errc; err != nil {
+	err = <-errc
+	if err != nil {
 		p.log.Print(err)
 	}
 }
